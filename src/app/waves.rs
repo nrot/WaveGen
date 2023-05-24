@@ -69,7 +69,7 @@ impl Wave {
         }
     }
 
-    pub fn display(&mut self, ui: &mut Ui, link_group_id: egui::Id) {
+    pub fn display(&mut self, ui: &mut Ui, link_group_id: egui::Id, mouse_pos: Option<Pos2>) {
         ui.horizontal(|ui| {
             let name = self.name.clone();
             ui.text_edit_singleline(&mut self.name)
@@ -116,7 +116,7 @@ impl Wave {
                                 self.state = WaveState::Edit(StateEdit {
                                     index: p.x.floor() as usize,
                                     value: v.clone(),
-                                    pos: p.to_pos2(),
+                                    pos: mouse_pos.unwrap_or(Pos2 { x: 0.0, y: 0.0 }),
                                 });
                             }
                         }
@@ -124,13 +124,19 @@ impl Wave {
                 });
             if let WaveState::Edit(edit) = &mut self.state {
                 let mut v = edit.value[0];
+                let mut open = true;
                 egui::Window::new(format!("Edit: {}", edit.index))
+                    .title_bar(true)
+                    .open(&mut open)
                     .default_pos(edit.pos)
                     .show(ui.ctx(), |ui| {
                         if ui.toggle_value(&mut v, "").changed() {
                             self.data[edit.index].insert(0, v);
                         };
                     });
+                if !open{
+                    self.state = WaveState::Show;
+                }
             }
         });
     }

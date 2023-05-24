@@ -1,4 +1,4 @@
-use egui::Ui;
+use egui::{Ui, Pos2};
 
 mod waves;
 
@@ -18,6 +18,8 @@ pub struct App {
     max_time: usize,
 
     waves: Vec<Wave>,
+
+    mouse_pos: Option<Pos2>
 }
 
 impl Default for App {
@@ -27,7 +29,8 @@ impl Default for App {
             label: "Hello World!".to_owned(),
             value: 2.7,
             max_time: 16,
-            waves: Vec::new()
+            waves: Vec::new(),
+            mouse_pos: None
         }
     }
 }
@@ -54,7 +57,7 @@ impl App{
         ui.vertical(|ui|{
             let link_group_id = ui.id().with("link_waves");
             for wave in &mut self.waves{
-                wave.display(ui, link_group_id);
+                wave.display(ui, link_group_id, self.mouse_pos);
             }
             if ui.button("+").clicked(){
                 self.waves.push(Wave::new("Clock", self.max_time));
@@ -74,6 +77,8 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // let Self { label, value, waves, max_time } = self;
+
+        self.mouse_pos = ctx.pointer_latest_pos();
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
