@@ -4,14 +4,17 @@
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+    init_logs(log::LevelFilter::Debug);
+
     // Log to stdout (if you run with `RUST_LOG=debug`).
-    tracing_subscriber::fmt::init();
+    // tracing_subscriber::fmt::init();
+
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "eframe template",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
+        Box::new(|cc| Box::new(eframe_template::App::new(cc))),
     )
 }
 
@@ -30,9 +33,34 @@ fn main() {
         eframe::start_web(
             "the_canvas_id", // hardcode it
             web_options,
-            Box::new(|cc| Box::new(eframe_template::TemplateApp::new(cc))),
+            Box::new(|cc| Box::new(eframe_template::App::new(cc))),
         )
         .await
         .expect("failed to start eframe");
     });
+}
+
+
+fn init_logs(log_level: log::LevelFilter) {
+    let colors = fern::colors::ColoredLevelConfig::default()
+        .info(fern::colors::Color::Blue)
+        .debug(fern::colors::Color::Yellow)
+        .trace(fern::colors::Color::Magenta);
+
+    fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{color_line}{}[{}][{}{color_line}]\x1B[0m {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                colors.color(record.level()),
+                message,
+                color_line =
+                    format_args!("\x1B[{}m", colors.get_color(&record.level()).to_fg_str())
+            ))
+        })
+        .level(log_level)
+        .chain(std::io::stdout())
+        .apply()
+        .unwrap();
 }
