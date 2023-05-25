@@ -2,7 +2,27 @@ use egui::{Ui, Pos2};
 
 mod waves;
 
+use log::debug;
 use waves::Wave;
+
+#[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
+struct ProjectSettings{
+    max_time: usize
+}
+
+impl Default for ProjectSettings{
+    fn default() -> Self {
+        Self { max_time: 16 }
+    }
+}
+
+#[derive(Default)]
+enum AppState{
+    #[default]
+    Main,
+    ProjectSettings(ProjectSettings)
+}
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -15,11 +35,15 @@ pub struct App {
     #[serde(skip)]
     value: f32,
 
-    max_time: usize,
-
     waves: Vec<Wave>,
 
-    mouse_pos: Option<Pos2>
+    #[serde(skip)]
+    user_input: egui::InputState,
+
+    #[serde(skip)]
+    state: AppState,
+
+    project_setting: ProjectSettings
 }
 
 impl Default for App {
@@ -28,9 +52,10 @@ impl Default for App {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
-            max_time: 16,
             waves: Vec::new(),
-            mouse_pos: None
+            user_input: egui::InputState::default(),
+            state: AppState::Main,
+            project_setting: ProjectSettings::default()
         }
     }
 }
@@ -57,17 +82,63 @@ impl App{
         ui.vertical(|ui|{
             let link_group_id = ui.id().with("link_waves");
             for wave in &mut self.waves{
-                wave.display(ui, link_group_id, self.mouse_pos);
+                wave.display(ui, link_group_id, &self.user_input);
             }
-            if ui.button("+").clicked(){
-                self.waves.push(Wave::new("Clock", self.max_time));
+            self.waves.retain(|v|{
+                !v.deleted()
+            });
+            if ui.button("Add").clicked(){
+                self.waves.push(Wave::new("Clock", self.project_setting.max_time));
             }
         });
+    }
+
+    fn draw_state(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
+        match self.state{
+            AppState::Main => {},
+            AppState::ProjectSettings(_) => self.draw_state_settings(ctx, frame),
+        }
+    }
+
+    fn draw_state_settings(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame){
+        let AppState::ProjectSettings(settings) = &mut self.state else {
+            self.state = AppState::Main;
+            return;
+        };
+        let mut open = true;
+        egui::Window::new("Settings").show(ctx, |ui|{
+            ui.vertical(|ui|{
+                ui.horizontal(|ui|{
+                    ui.label("Time size");
+                    ui.add(egui::DragValue::new(&mut settings.max_time));
+                })
+            }); 
+            ui.horizontal(|ui|{
+                if ui.button("Save").clicked(){
+                    if settings.max_time != self.project_setting.max_time{
+                        self.waves.iter_mut().for_each(|w|{
+                            w.set_len(settings.max_time);
+                        });
+                        self.project_setting.max_time = settings.max_time;
+                    }
+                    if true{
+                        //Заглушка
+                    }
+                }
+                if ui.button("Cancel").clicked(){
+                    open = false;
+                }
+            });
+        });
+        if !open{
+            self.state = AppState::Main;
+        }
     }
 }
 
 
 impl eframe::App for App {
+
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -75,10 +146,12 @@ impl eframe::App for App {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // let Self { label, value, waves, max_time } = self;
+        ctx.input(|i|{
+            self.user_input = i.clone();
+        });
 
-        self.mouse_pos = ctx.pointer_latest_pos();
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
@@ -90,18 +163,32 @@ impl eframe::App for App {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if let Some(storage) = frame.storage_mut(){
+                        if ui.button("Clear").clicked(){
+                            *self = Self::default();
+                            eframe::set_value(storage, eframe::APP_KEY, self);
+                        }
+                    }
                     if ui.button("Quit").clicked() {
-                        _frame.close();
+                        frame.close();
+                    }
+                });
+                ui.menu_button("Project", |ui|{
+                    if ui.button("Settings").clicked(){
+                        self.state = AppState::ProjectSettings(self.project_setting);
                     }
                 });
             });
         });
 
-
         egui::CentralPanel::default().show(ctx, |ui| {
             self.central_panel(ui);
         });
+
+        self.draw_state(ctx, frame);
     }
+
+  
 
     
 }

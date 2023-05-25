@@ -1,9 +1,9 @@
 [package]
-name = "eframe_template"
+name = "wave_gen"
 version = "0.1.0"
-authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+authors = ["Nrot <nrot13@gmail.com>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.69"
 
 
 [dependencies]
@@ -38,7 +38,7 @@ opt-level = 2 # fast and small wasm
 
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
-opt-level = 2
+opt-level = 0
 
 
 [patch.crates-io]

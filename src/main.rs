@@ -14,7 +14,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "eframe template",
         native_options,
-        Box::new(|cc| Box::new(eframe_template::App::new(cc))),
+        Box::new(|cc| Box::new(wave_gen::App::new(cc))),
     )
 }
 
@@ -33,7 +33,7 @@ fn main() {
         eframe::start_web(
             "the_canvas_id", // hardcode it
             web_options,
-            Box::new(|cc| Box::new(eframe_template::App::new(cc))),
+            Box::new(|cc| Box::new(wave_gen::App::new(cc))),
         )
         .await
         .expect("failed to start eframe");
