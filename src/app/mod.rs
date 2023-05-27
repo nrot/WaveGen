@@ -108,6 +108,7 @@ impl App{
             windows::WindowResult::Open => {},
             windows::WindowResult::Save => {
                 settings.generate_data(&self.waves);
+                self.state = AppState::Main;
             },
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
@@ -129,6 +130,7 @@ impl App{
                     });
                     self.project_setting.max_time = settings.max_time;
                 }
+                self.state = AppState::Main;
             },
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
