@@ -1,27 +1,24 @@
+use std::rc::Rc;
+
 use egui::{Ui, Pos2};
 
 mod waves;
+mod widgets;
+mod windows;
 
 use log::debug;
 use waves::Wave;
 
-#[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-struct ProjectSettings{
-    max_time: usize
-}
+use crate::hseparator;
+use windows::{ProjectSettings, ProjectExport};
 
-impl Default for ProjectSettings{
-    fn default() -> Self {
-        Self { max_time: 16 }
-    }
-}
 
 #[derive(Default)]
 enum AppState{
     #[default]
     Main,
-    ProjectSettings(ProjectSettings)
+    ProjectSettings(ProjectSettings),
+    ProjectExport(ProjectExport)
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -83,6 +80,7 @@ impl App{
             let link_group_id = ui.id().with("link_waves");
             for wave in &mut self.waves{
                 wave.display(ui, link_group_id, &self.user_input);
+                hseparator!(ui);
             }
             self.waves.retain(|v|{
                 !v.deleted()
@@ -97,41 +95,44 @@ impl App{
         match self.state{
             AppState::Main => {},
             AppState::ProjectSettings(_) => self.draw_state_settings(ctx, frame),
+            AppState::ProjectExport(_) => self.draw_state_export(ctx, frame)
         }
     }
 
-    fn draw_state_settings(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame){
+    fn draw_state_export(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
+        let AppState::ProjectExport(settings) = &mut self.state else {
+            self.state = AppState::Main;
+            return;
+        };
+        match settings.display(ctx, frame){
+            windows::WindowResult::Open => {},
+            windows::WindowResult::Save => {
+                settings.generate_data(&self.waves);
+            },
+            windows::WindowResult::Cancel | windows::WindowResult::Close => {
+                self.state = AppState::Main;
+            },
+        }
+    }
+
+    fn draw_state_settings(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
         let AppState::ProjectSettings(settings) = &mut self.state else {
             self.state = AppState::Main;
             return;
         };
-        let mut open = true;
-        egui::Window::new("Settings").show(ctx, |ui|{
-            ui.vertical(|ui|{
-                ui.horizontal(|ui|{
-                    ui.label("Time size");
-                    ui.add(egui::DragValue::new(&mut settings.max_time));
-                })
-            }); 
-            ui.horizontal(|ui|{
-                if ui.button("Save").clicked(){
-                    if settings.max_time != self.project_setting.max_time{
-                        self.waves.iter_mut().for_each(|w|{
-                            w.set_len(settings.max_time);
-                        });
-                        self.project_setting.max_time = settings.max_time;
-                    }
-                    if true{
-                        //Заглушка
-                    }
+        match settings.display(ctx, frame) {
+            windows::WindowResult::Open => {},
+            windows::WindowResult::Save => {
+                if settings.max_time != self.project_setting.max_time{
+                    self.waves.iter_mut().for_each(|w|{
+                        w.set_len(settings.max_time);
+                    });
+                    self.project_setting.max_time = settings.max_time;
                 }
-                if ui.button("Cancel").clicked(){
-                    open = false;
-                }
-            });
-        });
-        if !open{
-            self.state = AppState::Main;
+            },
+            windows::WindowResult::Cancel | windows::WindowResult::Close => {
+                self.state = AppState::Main;
+            },
         }
     }
 }
@@ -163,6 +164,7 @@ impl eframe::App for App {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    hseparator!(ui);
                     if let Some(storage) = frame.storage_mut(){
                         if ui.button("Clear").clicked(){
                             *self = Self::default();
@@ -174,6 +176,9 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Project", |ui|{
+                    if ui.button("Generate").clicked(){
+                        self.state = AppState::ProjectExport(ProjectExport::default());
+                    }
                     if ui.button("Settings").clicked(){
                         self.state = AppState::ProjectSettings(self.project_setting);
                     }

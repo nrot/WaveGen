@@ -1,0 +1,36 @@
+module test ();
+
+    reg test_clock;
+
+{{#each variables as |variable| }}
+    reg {{variable.name_data}} [{{variable.memory_size}}:0];
+    {{variable.tp}} {{variable.name}};
+    int {{variable.index}};
+    //---------------------
+{{/each}}
+
+    initial begin
+        test_clock = 0;
+
+    {{#each variables as |variable|}}
+        {{variable.index}} = 0;
+        $readmemb("{{variable.name_file}}", {{variable.name_data}}, {{variable.memory_size}});
+    {{/each}}
+
+        #{{end_time}} $finish;
+    end
+
+    always #1 test_clock = ~test_clock;
+    
+    always @(posedge test_clock)begin
+    {{#each variables as |variable|}}
+        {{variable.name}} =  {{variable.name_data}}[{{variable.index}}];
+        {{variable.index}} = {{variable.index}} + 1;
+        //---------------------
+    {{/each}}
+    end
+
+
+    // ADD THIS TESTING FUNCTION
+
+endmodule

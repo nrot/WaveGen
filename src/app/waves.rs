@@ -1,10 +1,14 @@
+use std::{io::Write, path::PathBuf, sync::Arc};
+
 use bitvec::prelude::*;
 use egui::{
-    plot::{Line, PlotPoint, PlotPoints, Polygon, AxisBools},
+    plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
     InputState, Pos2, Ui,
 };
 use log::debug;
 use serde::{Deserialize, Serialize};
+
+use crate::hseparator;
 
 #[derive(Serialize, Deserialize)]
 struct Clock {
@@ -77,12 +81,9 @@ impl Wave {
             ui.vertical(|ui| {
                 ui.text_edit_singleline(&mut self.name)
                     .context_menu(|ui| self.name_menu(ui));
-                if ui.button("Delete").clicked() {
-                    self.deleted = true;
-                }
             });
             let mut diff = 0.0;
-            if let Some(ts) = ui.ctx().style().text_styles.get(&egui::TextStyle::Body){
+            if let Some(ts) = ui.ctx().style().text_styles.get(&egui::TextStyle::Body) {
                 diff = ts.size as f64;
             };
 
@@ -119,8 +120,6 @@ impl Wave {
                     max += diff;
                     min -= diff;
 
-                    
- 
                     let line = Line::new(plot);
                     plot_ui.line(line);
                     if let Some(p) = plot_ui.pointer_coordinate() {
@@ -180,17 +179,81 @@ impl Wave {
         ui.menu_button("Change Type", |ui| {
             ui.button("Wire");
         });
+        hseparator!(ui);
+        if ui.button("Delete").clicked() {
+            self.deleted = true;
+        }
     }
 
     pub fn deleted(&self) -> bool {
         self.deleted
     }
 
-    pub fn set_len(&mut self, len: usize){
-        if self.data.len() < len{
+    pub fn set_len(&mut self, len: usize) {
+        if self.data.len() < len {
             self.data.resize(len, bitvec!(0; 1));
         } else {
             self.data.truncate(len);
         }
+    }
+
+    pub fn export_type(&self) -> String {
+        match self.tp {
+            WaveType::Clock(_) => "wire".into(),
+            WaveType::Wire => "wire".into(),
+            WaveType::Reg(s) => format!("reg [{}:0]", s),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn reg_size(&self) -> usize {
+        match self.tp {
+            WaveType::Clock(_) => 1,
+            WaveType::Wire => 1,
+            WaveType::Reg(s) => s,
+        }
+    }
+
+    pub fn generate_memb(&self, path: PathBuf) -> Result<(), std::io::Error> {
+        let mut fl = std::fs::File::create(path)?;
+        let size = self.reg_size();
+        for v in &self.data {
+            fl.write_all(
+                format!(
+                    "{:0>1$}\n",
+                    v.iter().fold(String::new(), |acc, v| {
+                        acc + (if *v { "1" } else { "0" })
+                    }),
+                    size
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+        }
+        fl.sync_data()?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use bitvec::{bitvec, vec::BitVec};
+
+    #[test]
+    fn test_bitvec_string() {
+        let b = bitvec!(1; 2);
+        println!(
+            "{:0>4}",
+            b.iter().fold(String::new(), |acc, v| {
+                acc + (if *v { "1" } else { "0" })
+            })
+        );
     }
 }

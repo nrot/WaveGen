@@ -12,7 +12,7 @@ fn main() -> eframe::Result<()> {
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
-        "eframe template",
+        "wave-generator",
         native_options,
         Box::new(|cc| Box::new(wave_gen::App::new(cc))),
     )
