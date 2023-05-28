@@ -1,3 +1,7 @@
+mod wtype;
+mod state_edit;
+mod value;
+
 use std::{io::Write, path::PathBuf, sync::Arc};
 
 use bitvec::prelude::*;
@@ -10,19 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::hseparator;
 
-#[derive(Serialize, Deserialize)]
-struct Clock {
-    period: usize,
-    duty: usize,
-    phase: usize,
-}
+use self::{wtype::WaveType, state_edit::StateEdit};
 
-#[derive(Serialize, Deserialize)]
-enum WaveType {
-    Clock(Clock),
-    Wire,
-    Reg(usize),
-}
 
 #[derive(Serialize, Deserialize)]
 enum WaveDisplay {
@@ -33,12 +26,7 @@ enum WaveDisplay {
     Analog(Box<WaveDisplay>), // ?
 }
 
-#[derive(Serialize, Deserialize)]
-struct StateEdit {
-    index: usize,
-    value: BitVec,
-    pos: Pos2,
-}
+
 
 #[derive(Serialize, Deserialize)]
 enum WaveState {
@@ -53,6 +41,8 @@ pub struct Wave {
     display: WaveDisplay,
     name: String,
     data: Vec<BitVec>,
+    plot_data: Vec<f64>,
+    viwed_data: Vec<String>,
     max_value: f64,
     min_value: f64,
     deleted: bool,
@@ -60,15 +50,21 @@ pub struct Wave {
 
 impl Wave {
     pub fn new<T: Into<String>>(name: T, size: usize) -> Self {
-        let mut v = Vec::with_capacity(size);
-        v.resize(size, bitvec![0; 1]);
-        debug!("New data size: {}", v.len());
+        let mut data = Vec::with_capacity(size);
+        data.resize(size, bitvec![0; 1]);
+        let mut plot_data = Vec::with_capacity(size);
+        plot_data.resize(size, 0.0);
+        let mut viwed_data = Vec::with_capacity(size);
+        viwed_data.resize(size, "0".into());
+        debug!("New data size: {}", data.len());
         Self {
             state: WaveState::Show,
             tp: WaveType::Wire,
             display: WaveDisplay::Binary,
             name: name.into(),
-            data: v,
+            data,
+            plot_data,
+            viwed_data,
             max_value: 0.0,
             min_value: 0.0,
             deleted: false,
@@ -147,6 +143,7 @@ impl Wave {
                                             .pointer
                                             .hover_pos()
                                             .unwrap_or(Pos2 { x: 0.0, y: 0.0 }),
+                                        tp: self.tp,
                                     });
                                 }
                             }
@@ -154,23 +151,16 @@ impl Wave {
                     }
                 });
             if let WaveState::Edit(edit) = &mut self.state {
-                let mut v = edit.value[0];
-                let mut open = true;
-                let mut open_2 = true;
-                egui::Window::new(format!("Edit: {}", edit.index))
-                    .title_bar(true)
-                    .open(&mut open)
-                    .collapsible(false)
-                    .default_pos(edit.pos)
-                    .show(ui.ctx(), |ui| {
-                        if ui.checkbox(&mut v, "value").changed() {
-                            self.data[edit.index].set(0, v);
-                            open_2 = false;
-                        };
-                    });
-                if !open || !open_2 {
-                    self.state = WaveState::Show;
-                }
+                match edit.window_edit(ui) {
+                    super::windows::WindowResult::Open => {},
+                    super::windows::WindowResult::Save => {
+                        self.data[edit.index] = edit.value.clone();
+                        self.state = WaveState::Show;
+                    },
+                    super::windows::WindowResult::Cancel | super::windows::WindowResult::Close=> {
+                        self.state = WaveState::Show;
+                    },
+                };
             }
         });
     }
