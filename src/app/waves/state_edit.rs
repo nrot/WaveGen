@@ -1,22 +1,20 @@
-use bitvec::vec::BitVec;
 use egui::{Pos2, Ui};
 use serde::{Deserialize, Serialize};
 
 use crate::app::windows::WindowResult;
 
-use super::wtype::WaveType;
+use super::{wtype::WaveType, value::BitValue};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct StateEdit {
     pub index: usize,
-    pub value: BitVec,
+    pub value: BitValue,
     pub pos: Pos2,
     pub tp: WaveType,
 }
 
 impl StateEdit {
     pub(super) fn window_edit(&mut self, ui: &mut Ui) -> WindowResult {
-        let mut v = self.value[0];
         let mut open = true;
         let mut state = WindowResult::Open;
         egui::Window::new(format!("Edit: {}", self.index))
@@ -35,7 +33,9 @@ impl StateEdit {
                         });
                     },
                     WaveType::Wire => {
+                        let mut v = self.value.bool();
                         if ui.checkbox(&mut v, "value").changed() {
+                            self.value.neg_bool();
                             state = WindowResult::Save;
                         };
                     },
@@ -57,5 +57,14 @@ mod test{
     #[test]
     fn test_f64_max(){
         println!("f64 max: {:e}", f64::MAX);
+    }
+
+    #[test]
+    fn test_u64_neg(){
+        let mut a = 1u64;
+        a = !a & 0b1;
+        println!("{}", a);
+        a = !a & 0b1;
+        println!("{}", a);  
     }
 }

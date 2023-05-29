@@ -1,10 +1,9 @@
-mod wtype;
 mod state_edit;
 mod value;
+mod wtype;
 
-use std::{io::Write, path::PathBuf, sync::Arc};
+use std::{io::Write, path::PathBuf};
 
-use bitvec::prelude::*;
 use egui::{
     plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
     InputState, Pos2, Ui,
@@ -14,8 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::hseparator;
 
-use self::{wtype::WaveType, state_edit::StateEdit};
-
+use self::{state_edit::StateEdit, value::BitValue, wtype::WaveType};
 
 #[derive(Serialize, Deserialize)]
 enum WaveDisplay {
@@ -25,8 +23,6 @@ enum WaveDisplay {
     UnsignedDecimal,
     Analog(Box<WaveDisplay>), // ?
 }
-
-
 
 #[derive(Serialize, Deserialize)]
 enum WaveState {
@@ -40,7 +36,7 @@ pub struct Wave {
     tp: WaveType,
     display: WaveDisplay,
     name: String,
-    data: Vec<BitVec>,
+    data: Vec<BitValue>,
     plot_data: Vec<f64>,
     viwed_data: Vec<String>,
     max_value: f64,
@@ -51,7 +47,7 @@ pub struct Wave {
 impl Wave {
     pub fn new<T: Into<String>>(name: T, size: usize) -> Self {
         let mut data = Vec::with_capacity(size);
-        data.resize(size, bitvec![0; 1]);
+        data.resize(size, BitValue::new(1));
         let mut plot_data = Vec::with_capacity(size);
         plot_data.resize(size, 0.0);
         let mut viwed_data = Vec::with_capacity(size);
@@ -152,14 +148,14 @@ impl Wave {
                 });
             if let WaveState::Edit(edit) = &mut self.state {
                 match edit.window_edit(ui) {
-                    super::windows::WindowResult::Open => {},
+                    super::windows::WindowResult::Open => {}
                     super::windows::WindowResult::Save => {
                         self.data[edit.index] = edit.value.clone();
                         self.state = WaveState::Show;
-                    },
-                    super::windows::WindowResult::Cancel | super::windows::WindowResult::Close=> {
+                    }
+                    super::windows::WindowResult::Cancel | super::windows::WindowResult::Close => {
                         self.state = WaveState::Show;
-                    },
+                    }
                 };
             }
         });
@@ -181,7 +177,7 @@ impl Wave {
 
     pub fn set_len(&mut self, len: usize) {
         if self.data.len() < len {
-            self.data.resize(len, bitvec!(0; 1));
+            self.data.resize(len, BitValue::new(1));
         } else {
             self.data.truncate(len);
         }
@@ -213,37 +209,11 @@ impl Wave {
 
     pub fn generate_memb(&self, path: PathBuf) -> Result<(), std::io::Error> {
         let mut fl = std::fs::File::create(path)?;
-        let size = self.reg_size();
         for v in &self.data {
-            fl.write_all(
-                format!(
-                    "{:0>1$}\n",
-                    v.iter().fold(String::new(), |acc, v| {
-                        acc + (if *v { "1" } else { "0" })
-                    }),
-                    size
-                )
-                .as_bytes(),
-            )
-            .unwrap();
+            fl.write_all(v.to_bin().as_bytes()).unwrap();
+            fl.write_all(b"\n").unwrap();
         }
         fl.sync_data()?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use bitvec::{bitvec, vec::BitVec};
-
-    #[test]
-    fn test_bitvec_string() {
-        let b = bitvec!(1; 2);
-        println!(
-            "{:0>4}",
-            b.iter().fold(String::new(), |acc, v| {
-                acc + (if *v { "1" } else { "0" })
-            })
-        );
     }
 }
