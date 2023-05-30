@@ -67,6 +67,7 @@ pub struct Wave {
     data: Vec<BitValue>,
     plot_data: Vec<f64>,
     viwed_data: Vec<String>,
+    selected_data: Vec<usize>,
     max_value: f64,
     min_value: f64,
     deleted: bool,
@@ -74,7 +75,7 @@ pub struct Wave {
 }
 
 impl Wave {
-    pub fn new<T: Into<String>>(name: T, size: usize) -> Self {
+    pub fn new<T: Into<String>>(name: T, size: usize, ui_size: Vec2) -> Self {
         let mut data = Vec::with_capacity(size);
         data.resize(size, BitValue::new(1));
         let mut plot_data = Vec::with_capacity(size);
@@ -90,10 +91,11 @@ impl Wave {
             data,
             plot_data,
             viwed_data,
+            selected_data: Vec::new(),
             max_value: 0.0,
             min_value: 0.0,
             deleted: false,
-            current_size: Vec2 { x: 100.0, y: 600.0 },
+            current_size: ui_size,
         }
     }
 
@@ -254,6 +256,17 @@ impl Wave {
         }
     }
 
+    fn recalculate_clock(&mut self) {
+        if let WaveType::Clock(c) = self.tp {
+            self.data.iter_mut().enumerate().for_each(|(i, v)| {
+                let i = i + c.phase;
+                v.set_size(1).unwrap();
+                v.set_zero();
+                v.set_bool((i % c.period) < c.duty);
+            });
+        }
+    }
+
     fn display_type_change(&mut self, ui: &mut Ui) {
         if let WaveState::TypeChange(params) = &mut self.state {
             match params.display(ui) {
@@ -261,13 +274,8 @@ impl Wave {
                 WindowResult::Save => {
                     match params.new_tp {
                         WaveType::Clock(c) => {
-                            self.data.iter_mut().enumerate().for_each(|(i, v)| {
-                                let i = i + c.phase;
-                                v.set_size(1).unwrap();
-                                v.set_zero();
-                                v.set_bool((i % c.period) < c.duty);
-                            });
                             self.tp = WaveType::Clock(c);
+                            self.recalculate_clock();
                             self.display = WaveDisplay::Binary;
                         }
                         WaveType::Wire => {}
@@ -301,7 +309,11 @@ impl Wave {
             if ui.button("Clock").clicked() {
                 self.state = WaveState::TypeChange(TypeChange {
                     current_tp: self.tp,
-                    new_tp: WaveType::Clock(wtype::Clock::new()),
+                    new_tp: if let WaveType::Clock(_) = self.tp {
+                        self.tp
+                    } else {
+                        WaveType::Clock(wtype::Clock::new())
+                    },
                     max_size: self.data.len(),
                 });
                 return;
@@ -356,6 +368,7 @@ impl Wave {
         } else {
             self.data.truncate(len);
         }
+        self.recalculate_clock();
         self.refresh_min_max();
     }
 

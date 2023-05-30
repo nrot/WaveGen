@@ -1,4 +1,4 @@
-use egui::Ui;
+use egui::{Ui, Vec2};
 
 mod waves;
 mod widgets;
@@ -38,6 +38,9 @@ pub struct App {
     state: AppState,
 
     project_setting: ProjectSettings,
+
+    #[serde(skip)]
+    window_size: Vec2
 }
 
 impl Default for App {
@@ -50,6 +53,7 @@ impl Default for App {
             user_input: egui::InputState::default(),
             state: AppState::Main,
             project_setting: ProjectSettings::default(),
+            window_size: Vec2::ZERO
         }
     }
 }
@@ -97,6 +101,7 @@ impl App {
                     self.waves.push(Wave::new(
                         format!("Wire {}", self.waves.len()),
                         self.project_setting.max_time,
+                        Vec2::new(ui.available_width(), self.window_size.y / 10.0)
                     ));
                 }
             });
@@ -187,6 +192,7 @@ impl eframe::App for App {
         // Pick whichever suits you.
         // Tip: a good default choice is to just keep the `CentralPanel`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
+        self.window_size = frame.info().window_info.size;
 
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {

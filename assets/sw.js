@@ -1,9 +1,9 @@
-var cacheName = 'egui-template-pwa';
+var cacheName = 'wave-gen-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './eframe_template.js',
-  './eframe_template_bg.wasm',
+  './wave_gen.js',
+  './wave_gen_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */
