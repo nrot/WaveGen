@@ -1,5 +1,9 @@
-use std::path::PathBuf;
+use std::{
+    io::{self, Write},
+    path::PathBuf,
+};
 
+use anyhow::anyhow;
 use egui::{Ui, Vec2};
 
 mod waves;
@@ -7,8 +11,9 @@ mod widgets;
 mod windows;
 
 use waves::Wave;
+use zip::write::FileOptions;
 
-use crate::hseparator;
+use crate::{hseparator, PROJECT_FILE_NAME};
 use windows::{ProjectExport, ProjectSettings};
 
 #[derive(Default)]
@@ -41,10 +46,11 @@ pub struct App {
 
     project_setting: ProjectSettings,
 
+    #[serde(skip)]
     project_file: Option<PathBuf>,
 
     #[serde(skip)]
-    window_size: Vec2
+    window_size: Vec2,
 }
 
 impl Default for App {
@@ -58,7 +64,7 @@ impl Default for App {
             state: AppState::Main,
             project_setting: ProjectSettings::default(),
             window_size: Vec2::ZERO,
-            project_file: None
+            project_file: None,
         }
     }
 }
@@ -106,7 +112,7 @@ impl App {
                     self.waves.push(Wave::new(
                         format!("Wire {}", self.waves.len()),
                         self.project_setting.max_time,
-                        Vec2::new(ui.available_width(), self.window_size.y / 10.0)
+                        Vec2::new(ui.available_width(), self.window_size.y / 10.0),
                     ));
                 }
             });
@@ -177,6 +183,74 @@ impl App {
             }
         }
     }
+
+    //TODO: Rewrite to ->Result
+    fn save_to_file(&mut self) {
+        if self.project_file.is_none() {
+            self.project_file = rfd::FileDialog::new().add_filter("", &["wg"]).save_file();
+        }
+        if let Some(p) = &self.project_file {
+            let f = match std::fs::File::create(p) {
+                Ok(f) => f,
+                Err(e) => {
+                    self.state = AppState::Error(e.into());
+                    return;
+                }
+            };
+            let mut zip = zip::ZipWriter::new(f);
+            if let Err(e) = zip.start_file(PROJECT_FILE_NAME, FileOptions::default()) {
+                self.state = AppState::Error(e.into());
+                return;
+            }
+            let buff = match ron::ser::to_string(&self) {
+                Ok(b) => b,
+                Err(e) => {
+                    self.state = AppState::Error(e.into());
+                    return;
+                }
+            };
+            if let Err(e) = zip.write_all(buff.as_bytes()) {
+                self.state = AppState::Error(e.into());
+                return;
+            }
+            if let Err(e) = zip.finish() {
+                self.state = AppState::Error(e.into());
+            };
+        }
+    }
+    fn open_project(&mut self) {
+        let Some(p) = rfd::FileDialog::new().add_filter("", &["wg"]).pick_file() else {
+            return;
+        };
+        let f = match std::fs::File::open(p) {
+            Ok(f) => f,
+            Err(e) => {
+                self.state = AppState::Error(e.into());
+                return;
+            }
+        };
+        let mut zip = match zip::ZipArchive::new(f) {
+            Ok(z) => z,
+            Err(e) => {
+                self.state = AppState::Error(anyhow!("This is not wave gen project").context(e));
+                return;
+            }
+        };
+        let zf = match zip.by_name(PROJECT_FILE_NAME) {
+            Ok(zf) => zf,
+            Err(e) => {
+                self.state = AppState::Error(anyhow!("This is not wave gen project").context(e));
+                return;
+            }
+        };
+        *self = match ron::de::from_reader(zf) {
+            Ok(s) => s,
+            Err(e) => {
+                self.state = AppState::Error(anyhow!("This is not wave gen project").context(e));
+                return;
+            }
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -189,7 +263,10 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // let Self { label, value, waves, max_time } = self;
-        ctx.input(|i| {
+        ctx.input_mut(|i| {
+            if i.consume_key(egui::Modifiers::CTRL, egui::Key::S){
+                self.save_to_file();
+            }
             self.user_input = i.clone();
         });
 
@@ -204,11 +281,13 @@ impl eframe::App for App {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Save").clicked(){
-                        if let Some(p) = &self.project_file{
-                            
-                        }
+                    if ui.button("Open").clicked() {
+                        self.open_project();
                     }
+                    if ui.button("Save").clicked() {
+                        self.save_to_file();
+                    }
+
                     hseparator!(ui);
                     if let Some(storage) = frame.storage_mut() {
                         if ui.button("Clear").clicked() {

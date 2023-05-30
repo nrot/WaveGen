@@ -119,6 +119,7 @@ impl Wave {
                     .allow_scroll(false)
                     .allow_zoom(AxisBools::new(true, false))
                     .auto_bounds_y()
+                    //TODO: Rewrite this to external function
                     .show(ui, |plot_ui| {
                         let mut max = self.max_value;
                         let mut min = self.min_value;

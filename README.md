@@ -8,7 +8,7 @@ App for create system verilog test by using waveform gui.
 
 ## Feauters
 
-- [ ] Save/open project
+- [x] Save/open project
 - [x] Generate System Verilog test code
 - [x] Generate Memory files
    - [x] Binary format
@@ -34,6 +34,7 @@ App for create system verilog test by using waveform gui.
 | Left mouse grab    | Wave Separator | Resize Plot  |
 | Ctrl + Right mouse | Wave Plot      | Select       |
 | Key A              | Wave Plot      | Deselect all |
+| Ctrl + S           | Anywhere       | Save project |
 
 ## Build and Run
 

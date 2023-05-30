@@ -2864,6 +2864,7 @@ dependencies = [
  "miette",
  "num_cpus",
  "rfd",
+ "ron",
  "serde",
  "tracing-subscriber",
  "tracing-wasm",
