@@ -1,5 +1,3 @@
-use egui::Ui;
-
 use super::WindowResult;
 
 #[derive(Clone, Copy, serde::Deserialize, serde::Serialize)]
@@ -8,13 +6,8 @@ pub struct ProjectSettings {
     pub max_time: usize,
 }
 
-
 impl ProjectSettings {
-    pub fn display(
-        &mut self,
-        ctx: &egui::Context,
-        frame: &mut eframe::Frame,
-    ) -> WindowResult {
+    pub fn display(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) -> WindowResult {
         let mut state = WindowResult::Open;
         egui::Window::new("Settings").show(ctx, |ui| {
             ui.vertical(|ui| {

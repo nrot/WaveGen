@@ -1,10 +1,10 @@
 use egui::Ui;
-use serde::{Deserialize, Serialize};
 use log::error;
+use serde::{Deserialize, Serialize};
 
 use crate::{app::windows::WindowResult, hseparator};
 
-use super::{wtype::{Clock, WaveType}, value::BitValue};
+use super::{value::BitValue, wtype::WaveType};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct TypeChange {
@@ -29,7 +29,7 @@ impl TypeChange {
                     WaveType::Reg(_) => self.display_reg(ui),
                 });
                 hseparator!(ui);
-                if ui.button("Save").clicked(){
+                if ui.button("Save").clicked() {
                     state = WindowResult::Save;
                 }
             });
@@ -55,12 +55,15 @@ impl TypeChange {
         };
     }
 
-    fn display_reg(&mut self, ui: &mut Ui){
-        if let WaveType::Reg(r)=&mut self.new_tp{
-            ui.horizontal(|ui|{
+    fn display_reg(&mut self, ui: &mut Ui) {
+        if let WaveType::Reg(r) = &mut self.new_tp {
+            ui.horizontal(|ui| {
                 ui.label("Reg size");
                 ui.add(egui::DragValue::new(r).clamp_range(1..=BitValue::BITS));
-                ui.label(egui::RichText::new(format!("value must be from 1 to {}", BitValue::BITS)).small());
+                ui.label(
+                    egui::RichText::new(format!("value must be from 1 to {}", BitValue::BITS))
+                        .small(),
+                );
             });
         };
     }

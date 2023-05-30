@@ -314,28 +314,28 @@ impl Wave {
                 });
             }
         });
-        ui.menu_button("Change display", |ui|{
-            if ui.button("Binary").clicked(){
+        ui.menu_button("Change display", |ui| {
+            if ui.button("Binary").clicked() {
                 self.display = WaveDisplay::Binary;
                 return;
             }
-            if ui.button("Hex").clicked(){
+            if ui.button("Hex").clicked() {
                 self.display = WaveDisplay::Hex;
                 return;
             }
-            ui.menu_button("Decimal", |ui|{
-                if ui.button("Unsigned").clicked(){
+            ui.menu_button("Decimal", |ui| {
+                if ui.button("Unsigned").clicked() {
                     self.display = WaveDisplay::Decimal(WaveSign::Unsigned);
                 }
-                if ui.button("Signed").clicked(){
+                if ui.button("Signed").clicked() {
                     self.display = WaveDisplay::Decimal(WaveSign::Signed);
                 }
             });
-            ui.menu_button("Analog", |ui|{
-                if ui.button("Unsigned").clicked(){
+            ui.menu_button("Analog", |ui| {
+                if ui.button("Unsigned").clicked() {
                     self.display = WaveDisplay::Analog(WaveSign::Unsigned);
                 }
-                if ui.button("Signed").clicked(){
+                if ui.button("Signed").clicked() {
                     self.display = WaveDisplay::Analog(WaveSign::Signed);
                 }
             });
@@ -389,6 +389,7 @@ impl Wave {
         self.data.len()
     }
 
+    #[allow(unused)]
     fn reg_size(&self) -> usize {
         match self.tp {
             WaveType::Clock(_) => 1,

@@ -1,6 +1,6 @@
 use egui::{Pos2, Ui};
+use miette::ErrReport;
 use serde::{Deserialize, Serialize};
-use miette::{MietteDiagnostic, ErrReport};
 
 use crate::app::windows::WindowResult;
 

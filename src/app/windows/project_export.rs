@@ -1,14 +1,10 @@
-use std::{
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use handlebars::to_json;
 use log::{debug, error};
 
-use crate::{app::waves::Wave, hseparator, App};
+use crate::{app::waves::Wave, hseparator};
 
 use super::WindowResult;
 
@@ -83,7 +79,7 @@ impl ProjectExport {
                 return Err(anyhow!("Nothing to generate. Add atleast one signal"));
             };
             let mut hand = handlebars::Handlebars::new();
-            hand.register_template_file(TEMPLATE_NAME, "templates/test.hbs")?;;
+            hand.register_template_file(TEMPLATE_NAME, "templates/test.hbs")?;
             let fout = std::fs::File::create(self.export_folder.join("test.sv"))?;
 
             let mut data = ExportData {

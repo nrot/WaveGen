@@ -1,12 +1,9 @@
-use std::rc::Rc;
-
-use egui::{Pos2, Ui};
+use egui::Ui;
 
 mod waves;
 mod widgets;
 mod windows;
 
-use log::debug;
 use waves::Wave;
 
 use crate::hseparator;
@@ -154,7 +151,7 @@ impl App {
             }
         }
     }
-    fn draw_state_error(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn draw_state_error(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let AppState::Error(e) = &self.state {
             let mut open = true;
             egui::Window::new("Error").show(ctx, |ui| {
@@ -164,7 +161,6 @@ impl App {
                 if ui.button("Ok").clicked() {
                     open = false;
                 }
-                
             });
             if !open {
                 self.state = AppState::Main;

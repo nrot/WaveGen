@@ -1,6 +1,4 @@
-use egui::Ui;
 use serde::{Deserialize, Serialize};
-use tracing_subscriber::field::display;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub(super) struct Clock {

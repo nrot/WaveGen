@@ -1,11 +1,7 @@
-use std::{
-    num::ParseFloatError,
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
-use miette::{LabeledSpan, MietteDiagnostic, miette, ErrReport};
+use miette::{ErrReport, LabeledSpan, MietteDiagnostic};
 use serde::{Deserialize, Serialize};
-use log::debug;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BitValue {
@@ -78,7 +74,9 @@ impl BitValue {
         let mut snippet = MietteDiagnostic::new("Error by parsing value")
             .with_code(s)
             .with_severity(miette::Severity::Error)
-            .with_help("Value must start from -+ 0b, 0o, 0x or must be decimal. And size must be enough")
+            .with_help(
+                "Value must start from -+ 0b, 0o, 0x or must be decimal. And size must be enough",
+            )
             .with_labels(Vec::with_capacity(1));
         let mut chars: Vec<_> = s.chars().collect();
         let mut i = 0;
@@ -143,10 +141,11 @@ impl BitValue {
                             bits = bits - nw.ilog2() as i32 - 1;
                         }
                         if bits < 0 {
-                            snippet.labels.as_mut().unwrap().push(LabeledSpan::at(
-                                i + is * step + s.len(),
-                                "to long value",
-                            ));
+                            snippet
+                                .labels
+                                .as_mut()
+                                .unwrap()
+                                .push(LabeledSpan::at(i + is * step + s.len(), "to long value"));
                             return false;
                         }
                         inner[is] = nw;
@@ -202,7 +201,7 @@ impl BitValue {
             self.bits_size = size;
         } else {
             let byte = size / Self::BYTE;
-            let bit = size % Self::BYTE;
+            let _bit = size % Self::BYTE;
             let mask = self.get_mask(size);
             self.data[byte] &= mask;
             for i in byte + 1..Self::INNER_LEN {
@@ -212,6 +211,7 @@ impl BitValue {
         Ok(())
     }
 
+    #[allow(unused)]
     pub fn data(&self) -> &[u64; Self::INNER_LEN] {
         &self.data
     }
@@ -240,6 +240,7 @@ impl BitValue {
         self.print_base(IntBase::B2, false)
     }
 
+    #[allow(unused)]
     pub fn to_oct(&self) -> String {
         self.print_base(IntBase::B8, false)
     }
@@ -257,8 +258,7 @@ impl BitValue {
         self.to_dec(signed).parse::<f64>().unwrap()
     }
 
-
-    //TODO: REWRITE ALL THIS 
+    //TODO: REWRITE ALL THIS
     fn print_base(&self, base: IntBase, signed: bool) -> String {
         let mut s = String::new();
         if self.lsb {
@@ -313,8 +313,6 @@ impl IndexMut<usize> for BitValue {
 
 #[cfg(test)]
 mod test {
-    use miette::{ErrReport};
-
     use super::BitValue;
 
     #[test]
@@ -397,7 +395,7 @@ mod test {
                 println!("Report {:?}", s.with_source_code(format!("0o{:o}vv", b)));
 
                 // ErrReport::new(e);
-                
+
                 return;
             }
         };
