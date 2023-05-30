@@ -2,10 +2,55 @@
 
 ⚠ This project in developing phase. ⚠
 
-App for create system verilog test by useing waveform gui.
+App for create system verilog test by using waveform gui.
+
+![Preview](assets/imgs/this_to_this.webp)
+
+## Feauters
+
+- [ ] Save/open project
+- [x] Generate System Verilog test code
+- [x] Generate Memory files
+   - [x] Binary format
+   - [ ] Hex format
+- [x] Types
+   - [x] Clock generate
+   - [x] Wire type
+   - [x] Reg[512:0] type
+- [x] Displays
+   - [x] Bit
+   - [x] Analog
+   - [x] Hex/decimal
+
+## Control
+
+| Key             | Place          | Action      |
+| --------------- | -------------- | ----------- |
+| Right mouse     | Wave name      | Wave params |
+| Right mouse     | Wave Plot      | Edit value  |
+| Double Click    | Wave Plot      | Resize plot |
+| Left mouse grab | Wave Plot      | Move plot   |
+| Left mouse grab | Wave Separator | Resize Plot |
+
+## Build and Run
+
+Clone project:
+```bash
+git clone https://github.com/nrot/WaveGen
+```
+
+Build use cargo:
+```bash
+cargo build --release
+```
+
+Run use cargo:
+```bash
+cargo run --release
+```
 
 
-### Web Locally
+### Web Locally NOT TESTED
 
 You can compile your app to [WASM](https://en.wikipedia.org/wiki/WebAssembly) and publish it as a web page.
 
@@ -17,7 +62,7 @@ We use [Trunk](https://trunkrs.dev/) to build for web target.
 > `assets/sw.js` script will try to cache our app, and loads the cached version when it cannot connect to server allowing your app to work offline (like PWA).
 > appending `#dev` to `index.html` will skip this caching, allowing us to load the latest builds during development.
 
-### Web Deploy
+### Web Deploy NOT TESTED
 1. Just run `trunk build --release`.
 2. It will generate a `dist` directory as a "static html" website
 3. Upload the `dist` directory to any of the numerous free hosting websites including [GitHub Pages](https://docs.github.com/en/free-pro-team@latest/github/working-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).

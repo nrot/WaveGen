@@ -276,6 +276,8 @@ impl Wave {
                         WaveType::Clock(c) => {
                             self.tp = WaveType::Clock(c);
                             self.recalculate_clock();
+                            self.max_value = 1.0;
+                            self.min_value = 0.0;
                             self.display = WaveDisplay::Binary;
                         }
                         WaveType::Wire => {}

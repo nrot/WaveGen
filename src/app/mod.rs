@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use egui::{Ui, Vec2};
 
 mod waves;
@@ -39,6 +41,8 @@ pub struct App {
 
     project_setting: ProjectSettings,
 
+    project_file: Option<PathBuf>,
+
     #[serde(skip)]
     window_size: Vec2
 }
@@ -53,7 +57,8 @@ impl Default for App {
             user_input: egui::InputState::default(),
             state: AppState::Main,
             project_setting: ProjectSettings::default(),
-            window_size: Vec2::ZERO
+            window_size: Vec2::ZERO,
+            project_file: None
         }
     }
 }
@@ -199,6 +204,11 @@ impl eframe::App for App {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Save").clicked(){
+                        if let Some(p) = &self.project_file{
+                            
+                        }
+                    }
                     hseparator!(ui);
                     if let Some(storage) = frame.storage_mut() {
                         if ui.button("Clear").clicked() {
