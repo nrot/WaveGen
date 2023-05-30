@@ -221,6 +221,7 @@ impl BitValue {
         (self.data[0] & 0b1) as u8 != 0
     }
 
+    /// Edit self bool = !bool
     #[inline(always)]
     pub fn neg_bool(&mut self) {
         self.data[0] = !self.data[0] & 0b1;

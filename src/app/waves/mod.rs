@@ -3,7 +3,7 @@ mod type_change;
 mod value;
 mod wtype;
 
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf, collections::HashSet};
 
 use egui::{
     plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
@@ -67,7 +67,7 @@ pub struct Wave {
     data: Vec<BitValue>,
     plot_data: Vec<f64>,
     viwed_data: Vec<String>,
-    selected_data: Vec<usize>,
+    selected_data: HashSet<usize>,
     max_value: f64,
     min_value: f64,
     deleted: bool,
@@ -91,7 +91,7 @@ impl Wave {
             data,
             plot_data,
             viwed_data,
-            selected_data: Vec::new(),
+            selected_data: HashSet::new(),
             max_value: 0.0,
             min_value: 0.0,
             deleted: false,
@@ -143,30 +143,6 @@ impl Wave {
                                 })
                                 .collect(),
                         };
-                        //  self
-                        //     .data
-                        //     .iter()
-                        //     .enumerate()
-                        //     .flat_map(|(i, v)| {
-                        //         match self.display{
-                        //             WaveDisplay::Binary | WaveDisplay::Hex  => {
-                        //                 let t = v.to_f64(false);
-                        //                 [[i as f64, t], [(i + 1) as f64, t]]
-                        //             },
-                        //             WaveDisplay::Decimal(s) => {
-                        //                 let t = v.to_f64(s.signed());
-                        //                 [[i as f64, t], [(i + 1) as f64, t]]
-                        //             },
-                        //             WaveDisplay::Analog(s) => {
-                        //                 let t = v.to_f64(s.signed());
-                        //                 [[i as f64, t],]
-                        //             },
-                        //         }
-
-                        //     })
-                        //     .collect();
-                        // max += (max - min).abs() * 0.1;
-                        // min -= (max - min).abs() * 0.1;
                         let transfom = plot_ui.transform();
                         diff *= transfom.bounds().height() / transfom.frame().height() as f64;
                         diff *= 1.05;
@@ -186,36 +162,54 @@ impl Wave {
                                 ]))
                                 .color(egui::Color32::from_rgba_unmultiplied(30, 30, 150, 125));
                                 plot_ui.polygon(polygon.name(""));
+                                if user_input.key_pressed(egui::Key::A) {
+                                    self.selected_data.clear();
+                                }
                                 if plot_ui.plot_secondary_clicked() {
-                                    debug!(
-                                        "Clicked by plot: {}; Data size: {}",
-                                        p.x.floor() as usize,
-                                        self.data.len()
-                                    );
-                                    if let Some(v) = self.data.get(p.x.floor() as usize) {
+                                    if user_input.modifiers.ctrl {
+                                        self.selected_data.insert(p.x.floor() as usize);
+                                    } else {
                                         debug!(
-                                            "Mouse position: {:?}",
-                                            user_input.pointer.hover_pos()
+                                            "Clicked by plot: {}; Data size: {}",
+                                            p.x.floor() as usize,
+                                            self.data.len()
                                         );
-                                        self.state = WaveState::Edit(StateEdit {
-                                            index: p.x.floor() as usize,
-                                            init_value: v.clone(),
-                                            pos: user_input
-                                                .pointer
-                                                .hover_pos()
-                                                .unwrap_or(Pos2 { x: 0.0, y: 0.0 }),
-                                            tp: self.tp,
-                                            display: self.display,
-                                            current_value: None,
-                                            error: None,
-                                        });
+                                        if let Some(v) = self.data.get(p.x.floor() as usize) {
+                                            debug!(
+                                                "Mouse position: {:?}",
+                                                user_input.pointer.hover_pos()
+                                            );
+                                            self.state = WaveState::Edit(StateEdit {
+                                                index: p.x.floor() as usize,
+                                                init_value: v.clone(),
+                                                pos: user_input
+                                                    .pointer
+                                                    .hover_pos()
+                                                    .unwrap_or(Pos2 { x: 0.0, y: 0.0 }),
+                                                tp: self.tp,
+                                                display: self.display,
+                                                current_value: None,
+                                                error: None,
+                                            });
+                                        }
                                     }
                                 }
                             }
                         }
-                        if let WaveState::Edit(e) = &self.state {
+
+                        if !self.selected_data.is_empty() {
+                            self.selected_data.iter().for_each(|i| {
+                                let polygon = Polygon::new(PlotPoints::Owned(vec![
+                                    PlotPoint::new(*i as f64 + 0.01, max),
+                                    PlotPoint::new((*i + 1) as f64 - 0.01, max),
+                                    PlotPoint::new((*i + 1) as f64 - 0.01, min),
+                                    PlotPoint::new(*i as f64 + 0.01, min),
+                                ]))
+                                .color(egui::Color32::from_rgba_unmultiplied(150, 30, 30, 125));
+                                plot_ui.polygon(polygon.name(""));
+                            });
+                        } else if let WaveState::Edit(e) = &self.state {
                             let polygon = Polygon::new(PlotPoints::Owned(vec![
-                                //TODO: переделать в выделение максимума/минимума
                                 PlotPoint::new(e.index as f64, max),
                                 PlotPoint::new((e.index + 1) as f64, max),
                                 PlotPoint::new((e.index + 1) as f64, min),
@@ -236,11 +230,17 @@ impl Wave {
 
     fn display_window_edit(&mut self, ui: &mut Ui) {
         if let WaveState::Edit(edit) = &mut self.state {
-            match edit.window_edit(ui) {
+            match edit.window_edit(ui, &self.selected_data) {
                 WindowResult::Open => {}
                 WindowResult::Save => {
-                    self.data[edit.index] = edit.init_value.clone();
-                    let vf = self.data[edit.index].to_f64(self.display.signed());
+                    if !self.selected_data.is_empty() {
+                        self.selected_data.iter().for_each(|i| {
+                            self.data[*i] = edit.init_value.clone();
+                        });
+                    } else {
+                        self.data[edit.index] = edit.init_value.clone();
+                    }
+                    let vf = edit.init_value.to_f64(self.display.signed());
                     if vf > self.max_value {
                         self.max_value = vf;
                     }
@@ -287,6 +287,7 @@ impl Wave {
                             });
                             self.tp = WaveType::Reg(r);
                             self.display = WaveDisplay::Hex;
+                            self.refresh_min_max();
                         }
                     }
                     self.state = WaveState::Show;

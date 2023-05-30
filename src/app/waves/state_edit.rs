@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use egui::{Pos2, Ui};
 use miette::ErrReport;
 use serde::{Deserialize, Serialize};
@@ -19,58 +21,75 @@ pub(super) struct StateEdit {
 }
 
 impl StateEdit {
-    pub(super) fn window_edit(&mut self, ui: &mut Ui) -> WindowResult {
+    pub(super) fn window_edit(&mut self, ui: &mut Ui, selected: &HashSet<usize>) -> WindowResult {
         let mut open = true;
         let mut state = WindowResult::Open;
-        egui::Window::new(format!("Edit: {}", self.index))
-            .title_bar(true)
-            .open(&mut open)
-            .collapsible(false)
-            .default_pos(self.pos)
-            .show(ui.ctx(), |ui| match self.tp {
-                WaveType::Clock(_) => {
-                    ui.vertical(|ui| {
-                        ui.label("Clock can`t be modified. Change clock by type changing");
-                        if ui.button("Ok").clicked() {
-                            state = WindowResult::Cancel;
-                        }
-                    });
-                }
-                WaveType::Wire => {
-                    let mut v = self.init_value.bool();
-                    if ui.checkbox(&mut v, "value").changed() {
+
+        egui::Window::new(if !selected.is_empty() {
+            format!(
+                "Edit selected: {}..{}",
+                selected.iter().next().unwrap_or(&0),
+                selected.iter().last().unwrap_or(&0)
+            )
+        } else {
+            format!("Edit: {}", self.index)
+        })
+        .title_bar(true)
+        .open(&mut open)
+        .collapsible(false)
+        .default_pos(self.pos)
+        .show(ui.ctx(), |ui| match self.tp {
+            WaveType::Clock(_) => {
+                ui.vertical(|ui| {
+                    ui.label("Clock can`t be modified. Change clock by type changing");
+                    if ui.button("Ok").clicked() {
+                        state = WindowResult::Cancel;
+                    }
+                });
+            }
+            WaveType::Wire => {
+                let mut v = self.init_value.bool();
+                if !selected.is_empty(){
+                    if ui.checkbox(&mut v, "value").changed(){
                         self.init_value.neg_bool();
+                    };
+                    if ui.button("Save").clicked(){
+                        state = WindowResult::Save;
+                    }
+                } else if ui.checkbox(&mut v, "value").changed() {
+                    self.init_value.neg_bool();
+                    state = WindowResult::Save;
+                }
+                
+            }
+            WaveType::Reg(_) => {
+                if let Some(v) = &mut self.current_value {
+                    if ui.text_edit_singleline(v).changed() {
+                        if let Err(e) = self.init_value.parse_from(v) {
+                            self.error = Some(e.with_source_code(v.clone()));
+                        } else {
+                            self.error = None;
+                        };
+                    }
+                    if let Some(e) = &self.error {
+                        ui.label(format!("{}", e));
+                        ui.set_enabled(false);
+                    } else {
+                        ui.set_enabled(true);
+                    }
+                    if ui.button("Save").clicked() {
                         state = WindowResult::Save;
                     };
+                } else {
+                    self.current_value = Some(match self.display {
+                        WaveDisplay::Binary => self.init_value.to_bin(),
+                        WaveDisplay::Hex => self.init_value.to_hex(),
+                        WaveDisplay::Decimal(s) => self.init_value.to_dec(s.signed()),
+                        WaveDisplay::Analog(s) => self.init_value.to_dec(s.signed()),
+                    });
                 }
-                WaveType::Reg(_) => {
-                    if let Some(v) = &mut self.current_value {
-                        if ui.text_edit_singleline(v).changed() {
-                            if let Err(e) = self.init_value.parse_from(v) {
-                                self.error = Some(e.with_source_code(v.clone()));
-                            } else {
-                                self.error = None;
-                            };
-                        }
-                        if let Some(e) = &self.error {
-                            ui.label(format!("{}", e));
-                            ui.set_enabled(false);
-                        } else {
-                            ui.set_enabled(true);
-                        }
-                        if ui.button("Save").clicked() {
-                            state = WindowResult::Save;
-                        };
-                    } else {
-                        self.current_value = Some(match self.display {
-                            WaveDisplay::Binary => self.init_value.to_bin(),
-                            WaveDisplay::Hex => self.init_value.to_hex(),
-                            WaveDisplay::Decimal(s) => self.init_value.to_dec(s.signed()),
-                            WaveDisplay::Analog(s) => self.init_value.to_dec(s.signed()),
-                        });
-                    }
-                }
-            });
+            }
+        });
         if !open {
             state = WindowResult::Cancel;
         }
