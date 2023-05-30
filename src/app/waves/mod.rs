@@ -15,13 +15,29 @@ use crate::hseparator;
 
 use self::{state_edit::StateEdit, value::BitValue, wtype::WaveType};
 
-#[derive(Serialize, Deserialize)]
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+enum WaveSign{
+    Unsigned,
+    Signed
+}
+
+impl WaveSign{
+    pub fn sgined(&self)->bool{
+        match self{
+            WaveSign::Unsigned => false,
+            WaveSign::Signed => true,
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
 enum WaveDisplay {
     Binary,
     Hex,
-    SignedDecimal,
-    UnsignedDecimal,
-    Analog(Box<WaveDisplay>), // ?
+    Decimal(WaveSign),
+    Analog(WaveSign), 
 }
 
 #[derive(Serialize, Deserialize)]
@@ -134,12 +150,14 @@ impl Wave {
                                     debug!("Mouse position: {:?}", user_input.pointer.hover_pos());
                                     self.state = WaveState::Edit(StateEdit {
                                         index: p.x.floor() as usize,
-                                        value: v.clone(),
+                                        init_value: v.clone(),
                                         pos: user_input
                                             .pointer
                                             .hover_pos()
                                             .unwrap_or(Pos2 { x: 0.0, y: 0.0 }),
                                         tp: self.tp,
+                                        display: self.display,
+                                        current_value: None
                                     });
                                 }
                             }
@@ -150,7 +168,7 @@ impl Wave {
                 match edit.window_edit(ui) {
                     super::windows::WindowResult::Open => {}
                     super::windows::WindowResult::Save => {
-                        self.data[edit.index] = edit.value.clone();
+                        self.data[edit.index] = edit.init_value.clone();
                         self.state = WaveState::Show;
                     }
                     super::windows::WindowResult::Cancel | super::windows::WindowResult::Close => {

@@ -138,18 +138,28 @@ impl BitValue {
         } else {
             IntBase::B10
         };
-
+        let mut bits = self.bits_size as i32;
         let step = base.get_size();
-        let mut errors = false;
         let mut inner = [0u64; Self::INNER_LEN];
         chars.reverse();
-        chars[0..(chars.len() - i)]
+        let success = chars[0..(chars.len() - i)]
             .chunks(step)
             .enumerate()
-            .for_each(|(is, v)| {
+            .all(|(is, v)| {
                 let s: String = v.iter().rev().collect();
                 match u64::from_str_radix(&s, base.get_radix()) {
                     Ok(nw) => {
+                        if nw > 0 {
+                            bits = bits - nw.ilog2() as i32 - 1;
+                        }
+                        if bits < 0 {
+                            snippet.slices[0].annotations.push(SourceAnnotation {
+                                range: (i + is * step, i + is * step + s.len()),
+                                label: "to long value",
+                                annotation_type: AnnotationType::Error,
+                            });
+                            return false;
+                        }
                         inner[is] = nw;
                     }
                     Err(e) => {
@@ -175,11 +185,12 @@ impl BitValue {
                             },
                             annotation_type: AnnotationType::Error,
                         });
-                        errors = true;
+                        return false;
                     }
                 };
+                true
             });
-        if errors {
+        if !success {
             Err(snippet)
         } else {
             self.data = inner;
@@ -234,48 +245,22 @@ impl BitValue {
     }
 
     pub fn to_bin(&self) -> String {
-        return self.print_base(IntBase::B2);
-
-        let mut s = String::new();
-        if self.lsb {
-            let mut last = (self.bits_size / Self::BYTE).saturating_sub(1);
-            let bit = self.bits_size % Self::BYTE;
-            // if bit == 0{
-            //     last += 1;
-            // }
-            s += &format!(
-                "{:0>1$b}",
-                if self.neg {
-                    (!self.data[last] & self.get_mask(self.bits_size)) + 1
-                } else {
-                    self.data[last] & self.get_mask(self.bits_size)
-                },
-                if bit == 0 { Self::BYTE } else { bit }
-            );
-            for b in (0..last).rev() {
-                if self.neg {
-                    s += &format!("{:0>64b}", !self.data[b] + 1);
-                } else {
-                    s += &format!("{:0>64b}", self.data[b]);
-                }
-            }
-        }
-        s
+        self.print_base(IntBase::B2, false)
     }
 
     pub fn to_oct(&self) -> String {
-        self.print_base(IntBase::B8)
+        self.print_base(IntBase::B8, false)
     }
 
-    pub fn to_dec(&self) -> String {
-        self.print_base(IntBase::B10)
+    pub fn to_dec(&self, signed: bool) -> String {
+        self.print_base(IntBase::B10, signed)
     }
 
     pub fn to_hex(&self) -> String {
-        self.print_base(IntBase::B16)
+        self.print_base(IntBase::B16, false)
     }
 
-    fn print_base(&self, base: IntBase) -> String {
+    fn print_base(&self, base: IntBase, signed: bool) -> String {
         let mut s = String::new();
         if self.lsb {
             let last = (self.bits_size / Self::BYTE).saturating_sub(1);
@@ -284,7 +269,7 @@ impl BitValue {
             //     last += 1;
             // }
             s += &base.print(
-                if self.neg {
+                if self.neg && signed {
                     (!self.data[last] & self.get_mask(self.bits_size)) + 1
                 } else {
                     self.data[last] & self.get_mask(self.bits_size)
@@ -293,7 +278,7 @@ impl BitValue {
             );
 
             for b in (0..last).rev() {
-                if self.neg {
+                if self.neg && signed {
                     s += &base.print(!self.data[b] + 1, base.get_size());
                 } else {
                     s += &base.print(self.data[b], base.get_size());
@@ -353,7 +338,12 @@ mod test {
 
     #[test]
     fn test_saturating() {
-        println!("{}", 0u8.saturating_sub(1))
+        println!("{}", 0u8.saturating_sub(1));
+        println!("{}", 0b1u8.ilog2());
+        println!("{}", 0b10u8.ilog2());
+        println!("{}", 0b11u8.ilog2());
+        println!("{}", 0b110u8.ilog2());
+        println!("{}", 0b111u8.ilog2());
     }
 
     #[test]
@@ -437,6 +427,6 @@ mod test {
         let b = i128::from_le_bytes(rb);
         println!("{:o}", b);
         bv.parse_from(&format!("{}", b)).unwrap();
-        assert_eq!(format!("{:0>40}", b), format!("{}", bv.to_dec()));
+        assert_eq!(format!("{:0>40}", b), format!("{}", bv.to_dec(true)));
     }
 }

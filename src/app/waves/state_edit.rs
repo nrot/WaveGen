@@ -1,16 +1,19 @@
+use annotate_snippets::display_list::DisplayList;
 use egui::{Pos2, Ui};
 use serde::{Deserialize, Serialize};
 
 use crate::app::windows::WindowResult;
 
-use super::{wtype::WaveType, value::BitValue};
+use super::{wtype::WaveType, value::BitValue, WaveDisplay};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct StateEdit {
     pub index: usize,
-    pub value: BitValue,
+    pub init_value: BitValue,
     pub pos: Pos2,
     pub tp: WaveType,
+    pub display: WaveDisplay,
+    pub current_value: Option<String>
 }
 
 impl StateEdit {
@@ -33,14 +36,27 @@ impl StateEdit {
                         });
                     },
                     WaveType::Wire => {
-                        let mut v = self.value.bool();
+                        let mut v = self.init_value.bool();
                         if ui.checkbox(&mut v, "value").changed() {
-                            self.value.neg_bool();
+                            self.init_value.neg_bool();
                             state = WindowResult::Save;
                         };
                     },
-                    WaveType::Reg(s) => {
-
+                    WaveType::Reg(_) => {
+                        if let Some(v) = &mut self.current_value{
+                            if ui.text_edit_singleline(v).changed(){
+                                if let Err(e) = self.init_value.parse_from(v){
+                                    ui.label(DisplayList::from(e).to_string());
+                                };
+                            }
+                        } else {
+                            self.current_value = Some(match self.display{
+                                WaveDisplay::Binary => self.init_value.to_bin(),
+                                WaveDisplay::Hex => self.init_value.to_hex(),
+                                WaveDisplay::Decimal(s) => self.init_value.to_dec(s.sgined()),
+                                WaveDisplay::Analog(s) => self.init_value.to_dec(s.sgined()),
+                            }   );
+                        }
                     },
                 }
             });
