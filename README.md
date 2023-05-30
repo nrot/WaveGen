@@ -21,16 +21,19 @@ App for create system verilog test by using waveform gui.
    - [x] Bit
    - [x] Analog
    - [x] Hex/decimal
+- [x] Multiple selection 
 
 ## Control
 
-| Key             | Place          | Action      |
-| --------------- | -------------- | ----------- |
-| Right mouse     | Wave name      | Wave params |
-| Right mouse     | Wave Plot      | Edit value  |
-| Double Click    | Wave Plot      | Resize plot |
-| Left mouse grab | Wave Plot      | Move plot   |
-| Left mouse grab | Wave Separator | Resize Plot |
+| Key                | Place          | Action       |
+| ------------------ | -------------- | ------------ |
+| Right mouse        | Wave name      | Wave params  |
+| Right mouse        | Wave Plot      | Edit value   |
+| Double Click       | Wave Plot      | Resize plot  |
+| Left mouse grab    | Wave Plot      | Move plot    |
+| Left mouse grab    | Wave Separator | Resize Plot  |
+| Ctrl + Right mouse | Wave Plot      | Select       |
+| Key A              | Wave Plot      | Deselect all |
 
 ## Build and Run
 
