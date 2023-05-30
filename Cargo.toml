@@ -23,7 +23,7 @@ chrono = "0.4.24"
 rfd = "0.11.4"
 handlebars = "4.3.7"
 num_cpus = "1.15.0"
-annotate-snippets = { version = "0.9.1", features = ["color"] }
+miette = { version = "5.9.0" }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

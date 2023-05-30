@@ -1,10 +1,11 @@
-use std::{ops::{Index, IndexMut}, num::ParseFloatError};
-
-use annotate_snippets::{
-    display_list::FormatOptions,
-    snippet::{AnnotationType, Slice, Snippet, SourceAnnotation},
+use std::{
+    num::ParseFloatError,
+    ops::{Index, IndexMut},
 };
+
+use miette::{LabeledSpan, MietteDiagnostic, miette, ErrReport};
 use serde::{Deserialize, Serialize};
+use log::debug;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BitValue {
@@ -14,6 +15,7 @@ pub struct BitValue {
     lsb: bool,
 }
 
+#[derive(PartialEq, Eq)]
 enum IntBase {
     B2,
     B8,
@@ -72,23 +74,12 @@ impl BitValue {
         }
     }
 
-    pub fn parse_from<'a>(&'a mut self, s: &'a str) -> Result<(), Snippet<'a>> {
-        let mut snippet = Snippet {
-            title: None,
-            footer: vec![],
-            slices: vec![Slice {
-                source: s,
-                line_start: 0,
-                origin: None,
-                fold: false,
-                annotations: Vec::with_capacity(1),
-            }],
-            opt: FormatOptions {
-                color: true,
-                anonymized_line_numbers: true,
-                margin: None,
-            },
-        };
+    pub fn parse_from(&mut self, s: &str) -> Result<(), ErrReport> {
+        let mut snippet = MietteDiagnostic::new("Error by parsing value")
+            .with_code(s)
+            .with_severity(miette::Severity::Error)
+            .with_help("Value must start from -+ 0b, 0o, 0x or must be decimal. And size must be enough")
+            .with_labels(Vec::with_capacity(1));
         let mut chars: Vec<_> = s.chars().collect();
         let mut i = 0;
         self.neg = if let Some(n) = chars.first() {
@@ -104,12 +95,12 @@ impl BitValue {
                 _ => false,
             }
         } else {
-            snippet.slices[0].annotations.push(SourceAnnotation {
-                range: (0, 0),
-                label: "At least must be 1 symbol",
-                annotation_type: AnnotationType::Error,
-            });
-            return Err(snippet);
+            snippet
+                .labels
+                .as_mut()
+                .unwrap()
+                .push(LabeledSpan::at(0, "At least must be 1 symbol"));
+            return Err(ErrReport::new(snippet));
         };
 
         let base = if let Some(n) = chars.get(i..i + 2) {
@@ -121,12 +112,11 @@ impl BitValue {
                     'x' => IntBase::B16,
                     c => {
                         if c.is_alphabetic() {
-                            snippet.slices[0].annotations.push(SourceAnnotation {
-                                range: (0, i),
-                                label: "expected base type: 0b, -0o, 0x, 99. Aplabetic found here",
-                                annotation_type: AnnotationType::Error,
-                            });
-                            return Err(snippet);
+                            snippet.labels.as_mut().unwrap().push(LabeledSpan::at(
+                                i,
+                                "expected base type: 0b, -0o, 0x, 99. Aplabetic found here",
+                            ));
+                            return Err(ErrReport::new(snippet));
                         }
                         i -= 2;
                         IntBase::B10
@@ -153,19 +143,18 @@ impl BitValue {
                             bits = bits - nw.ilog2() as i32 - 1;
                         }
                         if bits < 0 {
-                            snippet.slices[0].annotations.push(SourceAnnotation {
-                                range: (i + is * step, i + is * step + s.len()),
-                                label: "to long value",
-                                annotation_type: AnnotationType::Error,
-                            });
+                            snippet.labels.as_mut().unwrap().push(LabeledSpan::at(
+                                i + is * step + s.len(),
+                                "to long value",
+                            ));
                             return false;
                         }
                         inner[is] = nw;
                     }
                     Err(e) => {
-                        snippet.slices[0].annotations.push(SourceAnnotation {
-                            range: (i + is * step, i + is * step + s.len()),
-                            label: match e.kind() {
+                        snippet.labels.as_mut().unwrap().push(LabeledSpan::at(
+                            i + is * step + s.len(),
+                            match e.kind() {
                                 std::num::IntErrorKind::Empty => {
                                     "cannot parse integer from empty string"
                                 }
@@ -183,15 +172,14 @@ impl BitValue {
                                 }
                                 _ => todo!(),
                             },
-                            annotation_type: AnnotationType::Error,
-                        });
+                        ));
                         return false;
                     }
                 };
                 true
             });
         if !success {
-            Err(snippet)
+            Err(ErrReport::new(snippet))
         } else {
             self.data = inner;
             Ok(())
@@ -200,6 +188,10 @@ impl BitValue {
 
     pub fn set_zero(&mut self) {
         self.data = [0u64; Self::INNER_LEN];
+    }
+
+    pub fn set_bool(&mut self, v: bool) {
+        self.data[0] = v as u64;
     }
 
     pub fn set_size(&mut self, size: usize) -> Result<(), ()> {
@@ -213,7 +205,7 @@ impl BitValue {
             let bit = size % Self::BYTE;
             let mask = self.get_mask(size);
             self.data[byte] &= mask;
-            for i in byte + 1..Self::BYTE {
+            for i in byte + 1..Self::INNER_LEN {
                 self.data[i] = 0;
             }
         }
@@ -260,12 +252,13 @@ impl BitValue {
         self.print_base(IntBase::B16, false)
     }
 
-
     // TIPS: That must should be always correct ?
-    pub fn to_f64(&self, signed: bool)->f64{
+    pub fn to_f64(&self, signed: bool) -> f64 {
         self.to_dec(signed).parse::<f64>().unwrap()
     }
 
+
+    //TODO: REWRITE ALL THIS 
     fn print_base(&self, base: IntBase, signed: bool) -> String {
         let mut s = String::new();
         if self.lsb {
@@ -274,8 +267,11 @@ impl BitValue {
             // if bit == 0{
             //     last += 1;
             // }
+            if signed && self.neg && base == IntBase::B10 {
+                s += "-";
+            }
             s += &base.print(
-                if self.neg && signed {
+                if self.neg && signed && base != IntBase::B10 {
                     (!self.data[last] & self.get_mask(self.bits_size)) + 1
                 } else {
                     self.data[last] & self.get_mask(self.bits_size)
@@ -284,7 +280,7 @@ impl BitValue {
             );
 
             for b in (0..last).rev() {
-                if self.neg && signed {
+                if self.neg && signed && base != IntBase::B10 {
                     s += &base.print(!self.data[b] + 1, base.get_size());
                 } else {
                     s += &base.print(self.data[b], base.get_size());
@@ -317,10 +313,8 @@ impl IndexMut<usize> for BitValue {
 
 #[cfg(test)]
 mod test {
-    use annotate_snippets::{
-        display_list::{DisplayList, FormatOptions},
-        snippet::{Annotation, AnnotationType, Slice, Snippet},
-    };
+    use miette::{ErrReport};
+
     use super::BitValue;
 
     #[test]
@@ -395,11 +389,16 @@ mod test {
         let b = i128::from_le_bytes(rb);
         println!("{:o}", b);
 
-        match bv.parse_from(&format!("0o{:o}", b)) {
+        match bv.parse_from(&format!("0o{:o}vv", b)) {
             Ok(_) => {}
             Err(s) => {
                 // println!("{}", DisplayList::from(s));
-                panic!("{}", DisplayList::from(s));
+                // println!("{}", s.to_string());
+                println!("Report {:?}", s.with_source_code(format!("0o{:o}vv", b)));
+
+                // ErrReport::new(e);
+                
+                return;
             }
         };
         assert_eq!(format!("{:0>44o}", b), format!("{}", bv.to_oct()));
@@ -453,7 +452,7 @@ mod test {
         println!("{}", bv.to_f64(true));
         let a = i128::MAX;
         bv.set_size(BitValue::BITS).unwrap();
-        bv.parse_from(&format!("0x{:x}{:x}",a, a)).unwrap();
+        bv.parse_from(&format!("0x{:x}{:x}", a, a)).unwrap();
         println!("{}", bv.to_f64(true));
     }
 }

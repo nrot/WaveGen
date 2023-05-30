@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use egui::{Ui, Pos2};
+use egui::{Pos2, Ui};
 
 mod waves;
 mod widgets;
@@ -10,15 +10,14 @@ use log::debug;
 use waves::Wave;
 
 use crate::hseparator;
-use windows::{ProjectSettings, ProjectExport};
-
+use windows::{ProjectExport, ProjectSettings};
 
 #[derive(Default)]
-enum AppState{
+enum AppState {
     #[default]
     Main,
     ProjectSettings(ProjectSettings),
-    ProjectExport(ProjectExport)
+    ProjectExport(ProjectExport),
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -40,7 +39,7 @@ pub struct App {
     #[serde(skip)]
     state: AppState,
 
-    project_setting: ProjectSettings
+    project_setting: ProjectSettings,
 }
 
 impl Default for App {
@@ -52,7 +51,7 @@ impl Default for App {
             waves: Vec::new(),
             user_input: egui::InputState::default(),
             state: AppState::Main,
-            project_setting: ProjectSettings::default()
+            project_setting: ProjectSettings::default(),
         }
     }
 }
@@ -73,75 +72,85 @@ impl App {
     }
 }
 
-
-impl App{
-    fn central_panel(&mut self, ui: &mut Ui){
-        ui.vertical(|ui|{
+impl App {
+    fn central_panel(&mut self, ui: &mut Ui) {
+        egui::ScrollArea::vertical().drag_to_scroll(false).show(ui, |ui| {
+            // })
+            // ui.vertical(|ui|{
             let link_group_id = ui.id().with("link_waves");
-            for wave in &mut self.waves{
+            for wave in &mut self.waves {
+                wave.current_size.x = ui.available_width();
                 wave.display(ui, link_group_id, &self.user_input);
-                hseparator!(ui);
+                let s = ui
+                    .add(egui::Separator::default().horizontal())
+                    .interact(egui::Sense {
+                        click: true,
+                        drag: true,
+                        focusable: true,
+                    });
+                if s.dragged() {
+                    wave.current_size.y += s.drag_delta().y;
+                }
             }
-            self.waves.retain(|v|{
-                !v.deleted()
-            });
-            if ui.button("Add").clicked(){
-                self.waves.push(Wave::new("Clock", self.project_setting.max_time));
+            self.waves.retain(|v| !v.deleted());
+            if ui.button("Add").clicked() {
+                self.waves.push(Wave::new(
+                    format!("Wire {}", self.waves.len()),
+                    self.project_setting.max_time,
+                ));
             }
         });
     }
 
-    fn draw_state(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
-        match self.state{
-            AppState::Main => {},
+    fn draw_state(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        match self.state {
+            AppState::Main => {}
             AppState::ProjectSettings(_) => self.draw_state_settings(ctx, frame),
-            AppState::ProjectExport(_) => self.draw_state_export(ctx, frame)
+            AppState::ProjectExport(_) => self.draw_state_export(ctx, frame),
         }
     }
 
-    fn draw_state_export(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
+    fn draw_state_export(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let AppState::ProjectExport(settings) = &mut self.state else {
             self.state = AppState::Main;
             return;
         };
-        match settings.display(ctx, frame){
-            windows::WindowResult::Open => {},
+        match settings.display(ctx, frame) {
+            windows::WindowResult::Open => {}
             windows::WindowResult::Save => {
                 settings.generate_data(&self.waves);
                 self.state = AppState::Main;
-            },
+            }
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
-            },
+            }
         }
     }
 
-    fn draw_state_settings(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame){
+    fn draw_state_settings(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let AppState::ProjectSettings(settings) = &mut self.state else {
             self.state = AppState::Main;
             return;
         };
         match settings.display(ctx, frame) {
-            windows::WindowResult::Open => {},
+            windows::WindowResult::Open => {}
             windows::WindowResult::Save => {
-                if settings.max_time != self.project_setting.max_time{
-                    self.waves.iter_mut().for_each(|w|{
+                if settings.max_time != self.project_setting.max_time {
+                    self.waves.iter_mut().for_each(|w| {
                         w.set_len(settings.max_time);
                     });
                     self.project_setting.max_time = settings.max_time;
                 }
                 self.state = AppState::Main;
-            },
+            }
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
-            },
+            }
         }
     }
 }
 
-
 impl eframe::App for App {
-
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
@@ -151,10 +160,9 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // let Self { label, value, waves, max_time } = self;
-        ctx.input(|i|{
+        ctx.input(|i| {
             self.user_input = i.clone();
         });
-
 
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
@@ -167,8 +175,8 @@ impl eframe::App for App {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     hseparator!(ui);
-                    if let Some(storage) = frame.storage_mut(){
-                        if ui.button("Clear").clicked(){
+                    if let Some(storage) = frame.storage_mut() {
+                        if ui.button("Clear").clicked() {
                             *self = Self::default();
                             eframe::set_value(storage, eframe::APP_KEY, self);
                         }
@@ -177,11 +185,11 @@ impl eframe::App for App {
                         frame.close();
                     }
                 });
-                ui.menu_button("Project", |ui|{
-                    if ui.button("Generate").clicked(){
+                ui.menu_button("Project", |ui| {
+                    if ui.button("Generate").clicked() {
                         self.state = AppState::ProjectExport(ProjectExport::default());
                     }
-                    if ui.button("Settings").clicked(){
+                    if ui.button("Settings").clicked() {
                         self.state = AppState::ProjectSettings(self.project_setting);
                     }
                 });
@@ -194,8 +202,4 @@ impl eframe::App for App {
 
         self.draw_state(ctx, frame);
     }
-
-  
-
-    
 }
