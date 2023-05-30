@@ -53,8 +53,8 @@ impl StateEdit {
                             self.current_value = Some(match self.display{
                                 WaveDisplay::Binary => self.init_value.to_bin(),
                                 WaveDisplay::Hex => self.init_value.to_hex(),
-                                WaveDisplay::Decimal(s) => self.init_value.to_dec(s.sgined()),
-                                WaveDisplay::Analog(s) => self.init_value.to_dec(s.sgined()),
+                                WaveDisplay::Decimal(s) => self.init_value.to_dec(s.signed()),
+                                WaveDisplay::Analog(s) => self.init_value.to_dec(s.signed()),
                             }   );
                         }
                     },

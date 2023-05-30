@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::{ops::{Index, IndexMut}, num::ParseFloatError};
 
 use annotate_snippets::{
     display_list::FormatOptions,
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BitValue {
     bits_size: usize,
-    data: [u64; Self::INNER_LEN],
+    data: [u64; Self::INNER_LEN], //TODO: ? https://docs.rs/num-bigint/0.4.3/num_bigint/struct.BigInt.html
     neg: bool,
     lsb: bool,
 }
@@ -260,6 +260,12 @@ impl BitValue {
         self.print_base(IntBase::B16, false)
     }
 
+
+    // TIPS: That must should be always correct ?
+    pub fn to_f64(&self, signed: bool)->f64{
+        self.to_dec(signed).parse::<f64>().unwrap()
+    }
+
     fn print_base(&self, base: IntBase, signed: bool) -> String {
         let mut s = String::new();
         if self.lsb {
@@ -315,7 +321,6 @@ mod test {
         display_list::{DisplayList, FormatOptions},
         snippet::{Annotation, AnnotationType, Slice, Snippet},
     };
-
     use super::BitValue;
 
     #[test]
@@ -356,7 +361,7 @@ mod test {
         }
         rb[9] = 0xff;
         let b = i128::from_le_bytes(rb);
-        println!("{:x}", b);
+        println!("{:b}", b);
         bv.parse_from(&format!("0b{:b}", b)).unwrap();
         assert_eq!(format!("{:0>128b}", b), format!("{}", bv.to_bin()));
     }
@@ -425,8 +430,30 @@ mod test {
         }
         rb[9] = 0xff;
         let b = i128::from_le_bytes(rb);
-        println!("{:o}", b);
+        println!("{}", b);
         bv.parse_from(&format!("{}", b)).unwrap();
+        println!("{:0>40}", b);
+        println!("{}", bv.to_dec(true));
         assert_eq!(format!("{:0>40}", b), format!("{}", bv.to_dec(true)));
+    }
+
+    #[test]
+    fn test_to_f64() {
+        let mut bv = BitValue::new(128);
+        let a = i64::MAX.to_le_bytes();
+        let mut rb = [0u8; 128 / 8];
+        for (i, av) in a.iter().enumerate() {
+            rb[i] = *av;
+        }
+        rb[9] = 0xff;
+        let b = i128::from_le_bytes(rb);
+        println!("{}", b);
+        bv.parse_from(&format!("{}", b)).unwrap();
+        println!("{:0>40}", b);
+        println!("{}", bv.to_f64(true));
+        let a = i128::MAX;
+        bv.set_size(BitValue::BITS).unwrap();
+        bv.parse_from(&format!("0x{:x}{:x}",a, a)).unwrap();
+        println!("{}", bv.to_f64(true));
     }
 }

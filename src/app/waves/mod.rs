@@ -1,6 +1,7 @@
 mod state_edit;
 mod value;
 mod wtype;
+mod type_change;
 
 use std::{io::Write, path::PathBuf};
 
@@ -13,7 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::hseparator;
 
-use self::{state_edit::StateEdit, value::BitValue, wtype::WaveType};
+use self::{state_edit::StateEdit, value::BitValue, wtype::WaveType, type_change::TypeChange};
+use super::windows::WindowResult;
 
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -23,7 +25,7 @@ enum WaveSign{
 }
 
 impl WaveSign{
-    pub fn sgined(&self)->bool{
+    pub fn signed(&self)->bool{
         match self{
             WaveSign::Unsigned => false,
             WaveSign::Signed => true,
@@ -40,10 +42,22 @@ enum WaveDisplay {
     Analog(WaveSign), 
 }
 
+impl WaveDisplay{
+    pub fn signed(&self)->bool{
+        match self{
+            WaveDisplay::Binary => false,
+            WaveDisplay::Hex => false,
+            WaveDisplay::Decimal(s) => s.signed(),
+            WaveDisplay::Analog(s) => s.signed(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 enum WaveState {
     Show,
     Edit(StateEdit),
+    TypeChange(TypeChange)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -95,7 +109,7 @@ impl Wave {
                 diff = ts.size as f64;
             };
 
-            egui::plot::Plot::new(name)
+            let plot_response = egui::plot::Plot::new(name)
                 .link_axis(link_group_id, true, false)
                 .link_cursor(link_group_id, true, true)
                 .allow_drag(AxisBools::new(true, false))
@@ -103,23 +117,51 @@ impl Wave {
                 .allow_zoom(AxisBools::new(true, false))
                 .auto_bounds_y()
                 .show(ui, |plot_ui| {
-                    let mut max = f64::NEG_INFINITY;
-                    let mut min = f64::INFINITY;
-                    let plot: PlotPoints = self
-                        .data
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(i, v)| {
-                            let t = v[0] as u8 as f64;
-                            if t > max {
-                                max = t;
-                            }
-                            if t < min {
-                                min = t;
-                            }
-                            [[i as f64, t], [(i + 1) as f64, t]]
-                        })
-                        .collect();
+                    let mut max = self.max_value;
+                    let mut min = self.min_value;
+                    let idata = self.data.iter().enumerate();
+                    let plot: PlotPoints = match self.display{
+                        WaveDisplay::Binary | WaveDisplay::Hex => {
+                            idata.flat_map(|(i, v)|{
+                                let t = v.to_f64(false);
+                                [[i as f64, t], [(i + 1) as f64, t]]
+                            }).collect()
+                        },
+                        WaveDisplay::Decimal(s) => {
+                            idata.flat_map(|(i, v)|{
+                                let t = v.to_f64(s.signed());
+                                [[i as f64, t], [(i + 1) as f64, t]]
+                            }).collect()
+                        },
+                        WaveDisplay::Analog(s) => {
+                            idata.map(|(i,v )|{
+                                let t = v.to_f64(s.signed());
+                                    [i as f64, t]
+                            }).collect()
+                        },
+                    };
+                    //  self
+                    //     .data
+                    //     .iter()
+                    //     .enumerate()
+                    //     .flat_map(|(i, v)| {
+                    //         match self.display{
+                    //             WaveDisplay::Binary | WaveDisplay::Hex  => {
+                    //                 let t = v.to_f64(false);
+                    //                 [[i as f64, t], [(i + 1) as f64, t]]
+                    //             },
+                    //             WaveDisplay::Decimal(s) => {
+                    //                 let t = v.to_f64(s.signed());
+                    //                 [[i as f64, t], [(i + 1) as f64, t]]
+                    //             },
+                    //             WaveDisplay::Analog(s) => {
+                    //                 let t = v.to_f64(s.signed());
+                    //                 [[i as f64, t],]
+                    //             },
+                    //         }
+                            
+                    //     })
+                    //     .collect();
                     // max += (max - min).abs() * 0.1;
                     // min -= (max - min).abs() * 0.1;
                     let transfom = plot_ui.transform();
@@ -138,7 +180,7 @@ impl Wave {
                                 PlotPoint::new(p.x.ceil(), max),
                                 PlotPoint::new(p.x.ceil(), min),
                                 PlotPoint::new(p.x.floor(), min),
-                            ]));
+                            ])).color(egui::Color32::from_rgba_unmultiplied(30, 30, 150, 125));
                             plot_ui.polygon(polygon.name(""));
                             if plot_ui.plot_secondary_clicked() {
                                 debug!(
@@ -163,25 +205,74 @@ impl Wave {
                             }
                         }
                     }
+                    if let WaveState::Edit(e) = &self.state{
+                        let polygon =  Polygon::new(PlotPoints::Owned(vec![
+                            //TODO: переделать в выделение максимума/минимума
+                            PlotPoint::new(e.index as f64, max),
+                            PlotPoint::new((e.index  + 1)as f64, max),
+                            PlotPoint::new((e.index  + 1)as f64, min),
+                            PlotPoint::new(e.index as f64, min),
+                        ])).color(egui::Color32::from_rgba_unmultiplied(150, 30, 30, 125));
+                        plot_ui.polygon(polygon.name(""));
+                    }
                 });
-            if let WaveState::Edit(edit) = &mut self.state {
-                match edit.window_edit(ui) {
-                    super::windows::WindowResult::Open => {}
-                    super::windows::WindowResult::Save => {
-                        self.data[edit.index] = edit.init_value.clone();
-                        self.state = WaveState::Show;
-                    }
-                    super::windows::WindowResult::Cancel | super::windows::WindowResult::Close => {
-                        self.state = WaveState::Show;
-                    }
-                };
+            if plot_response.response.double_clicked(){
+                self.refresh_min_max();
             }
+            self.display_window_edit(ui);
+            self.display_type_change(ui);
         });
+    }
+
+    fn display_window_edit(&mut self, ui: &mut Ui){
+        if let WaveState::Edit(edit) = &mut self.state {
+            match edit.window_edit(ui) {
+                WindowResult::Open => {}
+                WindowResult::Save => {
+                    self.data[edit.index] = edit.init_value.clone();
+                    let vf = self.data[edit.index].to_f64(self.display.signed());
+                    if  vf > self.max_value{
+                        self.max_value = vf;
+                    }
+                    if vf < self.min_value{
+                        self.min_value = vf;
+                    }
+                    self.state = WaveState::Show;
+                }
+                WindowResult::Cancel | WindowResult::Close => {
+                    self.state = WaveState::Show;
+                }
+            };
+        }
+    }
+
+    fn display_type_change(&mut self, ui: &mut Ui){
+        if let WaveState::TypeChange(params) = &mut self.state{
+            match params.display(ui){
+                WindowResult::Open => {},
+                WindowResult::Save => {
+
+                    self.state = WaveState::Show;
+                },
+                WindowResult::Cancel |WindowResult::Close  => {
+                    self.state = WaveState::Show;
+                },
+            }
+        }
     }
 
     fn name_menu(&mut self, ui: &mut Ui) {
         ui.menu_button("Change Type", |ui| {
-            ui.button("Wire");
+            if ui.button("Wire").clicked() {
+                self.data.iter_mut().for_each(|v|{
+                    v.set_size(1).unwrap();
+                    self.display = WaveDisplay::Binary;
+                    self.tp = WaveType::Wire;
+                })
+            };
+            if ui.button("").clicked(){
+                self.state = WaveState::TypeChange(TypeChange {  });
+            }
         });
         hseparator!(ui);
         if ui.button("Delete").clicked() {
@@ -199,6 +290,21 @@ impl Wave {
         } else {
             self.data.truncate(len);
         }
+        self.refresh_min_max();
+    }
+
+    fn refresh_min_max(&mut self){
+        self.max_value = f64::NEG_INFINITY;
+        self.min_value = f64::INFINITY;
+        self.data.iter().for_each(|v|{
+            let fv = v.to_f64(self.display.signed());
+            if fv > self.max_value{
+                self.max_value = fv;
+            }
+            if fv < self.min_value{
+                self.min_value = fv;
+            }
+        });
     }
 
     pub fn export_type(&self) -> String {
