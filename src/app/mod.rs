@@ -18,6 +18,7 @@ enum AppState {
     Main,
     ProjectSettings(ProjectSettings),
     ProjectExport(ProjectExport),
+    Error(anyhow::Error),
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -74,32 +75,34 @@ impl App {
 
 impl App {
     fn central_panel(&mut self, ui: &mut Ui) {
-        egui::ScrollArea::vertical().drag_to_scroll(false).show(ui, |ui| {
-            // })
-            // ui.vertical(|ui|{
-            let link_group_id = ui.id().with("link_waves");
-            for wave in &mut self.waves {
-                wave.current_size.x = ui.available_width();
-                wave.display(ui, link_group_id, &self.user_input);
-                let s = ui
-                    .add(egui::Separator::default().horizontal())
-                    .interact(egui::Sense {
-                        click: true,
-                        drag: true,
-                        focusable: true,
-                    });
-                if s.dragged() {
-                    wave.current_size.y += s.drag_delta().y;
+        egui::ScrollArea::vertical()
+            .drag_to_scroll(false)
+            .show(ui, |ui| {
+                // })
+                // ui.vertical(|ui|{
+                let link_group_id = ui.id().with("link_waves");
+                for wave in &mut self.waves {
+                    wave.current_size.x = ui.available_width();
+                    wave.display(ui, link_group_id, &self.user_input);
+                    let s = ui
+                        .add(egui::Separator::default().horizontal())
+                        .interact(egui::Sense {
+                            click: true,
+                            drag: true,
+                            focusable: true,
+                        });
+                    if s.dragged() {
+                        wave.current_size.y += s.drag_delta().y;
+                    }
                 }
-            }
-            self.waves.retain(|v| !v.deleted());
-            if ui.button("Add").clicked() {
-                self.waves.push(Wave::new(
-                    format!("Wire {}", self.waves.len()),
-                    self.project_setting.max_time,
-                ));
-            }
-        });
+                self.waves.retain(|v| !v.deleted());
+                if ui.button("Add").clicked() {
+                    self.waves.push(Wave::new(
+                        format!("Wire {}", self.waves.len()),
+                        self.project_setting.max_time,
+                    ));
+                }
+            });
     }
 
     fn draw_state(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -107,6 +110,7 @@ impl App {
             AppState::Main => {}
             AppState::ProjectSettings(_) => self.draw_state_settings(ctx, frame),
             AppState::ProjectExport(_) => self.draw_state_export(ctx, frame),
+            AppState::Error(_) => self.draw_state_error(ctx, frame),
         }
     }
 
@@ -118,8 +122,10 @@ impl App {
         match settings.display(ctx, frame) {
             windows::WindowResult::Open => {}
             windows::WindowResult::Save => {
-                settings.generate_data(&self.waves);
-                self.state = AppState::Main;
+                match settings.generate_data(&self.waves) {
+                    Ok(()) => self.state = AppState::Main,
+                    Err(e) => self.state = AppState::Error(e),
+                };
             }
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
@@ -144,6 +150,23 @@ impl App {
                 self.state = AppState::Main;
             }
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
+                self.state = AppState::Main;
+            }
+        }
+    }
+    fn draw_state_error(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if let AppState::Error(e) = &self.state {
+            let mut open = true;
+            egui::Window::new("Error").show(ctx, |ui| {
+                hseparator!(ui);
+                ui.label(egui::RichText::new(e.to_string()).color(egui::Color32::RED));
+                hseparator!(ui);
+                if ui.button("Ok").clicked() {
+                    open = false;
+                }
+                
+            });
+            if !open {
                 self.state = AppState::Main;
             }
         }

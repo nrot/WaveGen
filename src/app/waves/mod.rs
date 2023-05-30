@@ -382,7 +382,7 @@ impl Wave {
     }
 
     pub fn name(&self) -> String {
-        self.name.clone()
+        self.name.clone().replace(' ', "_")
     }
 
     pub fn len(&self) -> usize {
