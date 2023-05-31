@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Write},
+    io::Write,
     path::PathBuf,
 };
 
@@ -105,6 +105,9 @@ impl App {
                         });
                     if s.dragged() {
                         wave.current_size.y += s.drag_delta().y;
+                        s.on_hover_cursor(egui::CursorIcon::Grabbing);
+                    } else {
+                        s.on_hover_cursor(egui::CursorIcon::Grab);
                     }
                 }
                 self.waves.retain(|v| !v.deleted());
@@ -264,7 +267,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // let Self { label, value, waves, max_time } = self;
         ctx.input_mut(|i| {
-            if i.consume_key(egui::Modifiers::CTRL, egui::Key::S){
+            if i.consume_key(egui::Modifiers::CTRL, egui::Key::S) {
                 self.save_to_file();
             }
             self.user_input = i.clone();

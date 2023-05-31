@@ -118,6 +118,7 @@ impl Wave {
                     .allow_drag(AxisBools::new(true, false))
                     .allow_scroll(false)
                     .allow_zoom(AxisBools::new(true, false))
+                    .allow_boxed_zoom(false)
                     .auto_bounds_y()
                     //TODO: Rewrite this to external function
                     .show(ui, |plot_ui| {
@@ -149,6 +150,14 @@ impl Wave {
                         diff *= 1.05;
                         max += diff;
                         min -= diff;
+
+                        //TIPS: egui next_power check for y != 0.0. Why?
+                        if min.abs() == 0.0{
+                            min += 0.0000000001;
+                        }
+                        if max.abs() == 0.0{
+                            max += 0.0000000001;
+                        }
 
                         let line = Line::new(plot);
                         plot_ui.line(line);
