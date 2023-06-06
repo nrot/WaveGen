@@ -16,12 +16,15 @@ use zip::write::FileOptions;
 use crate::{hseparator, PROJECT_FILE_NAME};
 use windows::{ProjectExport, ProjectSettings};
 
+use self::windows::ImportData;
+
 #[derive(Default)]
 enum AppState {
     #[default]
     Main,
     ProjectSettings(ProjectSettings),
     ProjectExport(ProjectExport),
+    ImportData(ImportData),
     Error(anyhow::Error),
 }
 
@@ -127,6 +130,7 @@ impl App {
             AppState::ProjectSettings(_) => self.draw_state_settings(ctx, frame),
             AppState::ProjectExport(_) => self.draw_state_export(ctx, frame),
             AppState::Error(_) => self.draw_state_error(ctx, frame),
+            AppState::ImportData(_) => self.draw_state_import_data(ctx, frame),
         }
     }
 
@@ -187,39 +191,32 @@ impl App {
         }
     }
 
+    fn draw_state_import_data(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame){
+        let AppState::ImportData(import) = &mut self.state else {
+            self.state = AppState::Main;
+            return;
+        };
+        match import.display(ctx, _frame) {
+            windows::WindowResult::Open => {},
+            windows::WindowResult::Save => todo!(),
+            windows::WindowResult::Cancel | windows::WindowResult::Close => {self.state = AppState::Main},
+        }
+    }
+
     //TODO: Rewrite to ->Result
-    fn save_to_file(&mut self) {
+    fn save_to_file(&mut self)->Result<(), anyhow::Error> {
         if self.project_file.is_none() {
             self.project_file = rfd::FileDialog::new().add_filter("", &["wg"]).save_file();
         }
         if let Some(p) = &self.project_file {
-            let f = match std::fs::File::create(p) {
-                Ok(f) => f,
-                Err(e) => {
-                    self.state = AppState::Error(e.into());
-                    return;
-                }
-            };
+            let f = std::fs::File::create(p)?;
             let mut zip = zip::ZipWriter::new(f);
-            if let Err(e) = zip.start_file(PROJECT_FILE_NAME, FileOptions::default()) {
-                self.state = AppState::Error(e.into());
-                return;
-            }
-            let buff = match ron::ser::to_string(&self) {
-                Ok(b) => b,
-                Err(e) => {
-                    self.state = AppState::Error(e.into());
-                    return;
-                }
-            };
-            if let Err(e) = zip.write_all(buff.as_bytes()) {
-                self.state = AppState::Error(e.into());
-                return;
-            }
-            if let Err(e) = zip.finish() {
-                self.state = AppState::Error(e.into());
-            };
+            zip.start_file(PROJECT_FILE_NAME, FileOptions::default())?;
+            let buff = ron::ser::to_string(&self)?;
+            zip.write_all(buff.as_bytes())?;
+            zip.finish()?;
         }
+        Ok(())
     }
     fn open_project(&mut self) {
         let Some(p) = rfd::FileDialog::new().add_filter("", &["wg"]).pick_file() else {
@@ -268,7 +265,9 @@ impl eframe::App for App {
         // let Self { label, value, waves, max_time } = self;
         ctx.input_mut(|i| {
             if i.consume_key(egui::Modifiers::CTRL, egui::Key::S) {
-                self.save_to_file();
+                if let Err(e) = self.save_to_file(){
+                    self.state = AppState::Error(e);
+                };
             }
             self.user_input = i.clone();
         });
@@ -288,7 +287,9 @@ impl eframe::App for App {
                         self.open_project();
                     }
                     if ui.button("Save").clicked() {
-                        self.save_to_file();
+                        if let Err(e) = self.save_to_file(){
+                            self.state = AppState::Error(e);
+                        };
                     }
 
                     hseparator!(ui);
@@ -303,6 +304,10 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Project", |ui| {
+                    if ui.button("Import").clicked(){
+                        self.state = AppState::ImportData(ImportData::default());
+                    }
+                    hseparator!(ui);
                     if ui.button("Generate").clicked() {
                         self.state = AppState::ProjectExport(ProjectExport::default());
                     }

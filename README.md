@@ -22,6 +22,9 @@ App for create system verilog test by using waveform gui.
    - [x] Analog
    - [x] Hex/decimal
 - [x] Multiple selection 
+- [ ] Import
+  - [ ] CSV
+  - [ ] VCD
 
 ## Control
 
@@ -35,6 +38,7 @@ App for create system verilog test by using waveform gui.
 | Ctrl + Right mouse | Wave Plot      | Select       |
 | Key A              | Wave Plot      | Deselect all |
 | Ctrl + S           | Anywhere       | Save project |
+| Rigth mouse grab   | Wave Plot      | Box scale    |
 
 ## Build and Run
 
