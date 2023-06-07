@@ -1,4 +1,9 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
+
+use egui::Ui;
+use vcd::Parser;
+
+use crate::app::waves::Wave;
 
 use super::WindowResult;
 
@@ -28,6 +33,7 @@ impl ToString for InputType {
 pub struct ImportData {
     input_tp_file: InputType,
     file_path: Option<PathBuf>,
+    new_waves: Vec<Wave>,
 }
 
 impl Default for ImportData {
@@ -35,6 +41,7 @@ impl Default for ImportData {
         Self {
             input_tp_file: InputType::CSV,
             file_path: None,
+            new_waves: Vec::new(),
         }
     }
 }
@@ -65,6 +72,7 @@ impl ImportData {
                         if ui.button("Choose file").clicked() {
                             let folder = rfd::FileDialog::new().pick_file();
                             if let Some(f) = folder {
+                                self.import_vcd(&f);
                                 self.file_path = Some(f);
                             }
                         }
@@ -76,4 +84,34 @@ impl ImportData {
         }
         state
     }
+
+    fn import_vcd(&mut self, p: &PathBuf) -> Result<(), anyhow::Error> {
+        let f = std::fs::File::open(p)?;
+        let mut parser = vcd::Parser::new(f);
+        let header = parser.parse_header()?;
+        let mut scope = vcd::Scope::default();
+        let mut vars = HashMap::new();
+        let mut stack = Vec::new();
+        stack.push(header.items);
+        while let Some(items) = stack.pop() {
+            for i in items {
+                match i {
+                    vcd::ScopeItem::Scope(s) => {
+                        stack.push(s.children);
+                    }
+                    vcd::ScopeItem::Var(v) => {
+                        vars.insert(v.code, v);
+                    }
+                }
+            }
+        }
+        
+
+        Ok(())
+    }
+}
+
+struct VcdVar {
+    scope: vcd::Scope,
+    var: vcd::Var,
 }
