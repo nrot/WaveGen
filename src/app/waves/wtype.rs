@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub(super) struct Clock {
+pub struct Clock {
     pub period: usize,
     pub duty: usize,
     pub phase: usize,
@@ -18,7 +18,7 @@ impl Clock {
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WaveType {
+pub enum WaveType {
     Clock(Clock),
     Wire,
     Reg(usize),

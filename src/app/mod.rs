@@ -17,6 +17,7 @@ use crate::{hseparator, PROJECT_FILE_NAME};
 use windows::{ProjectExport, ProjectSettings};
 
 use self::windows::ImportData;
+pub use waves::WaveType;
 
 #[derive(Default)]
 enum AppState {

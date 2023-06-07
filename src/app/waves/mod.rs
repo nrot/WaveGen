@@ -3,7 +3,7 @@ mod type_change;
 mod value;
 mod wtype;
 
-use std::{io::Write, path::PathBuf, collections::HashSet};
+use std::{collections::HashSet, io::Write, path::PathBuf};
 
 use egui::{
     plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
@@ -14,8 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::hseparator;
 
-use self::{state_edit::StateEdit, type_change::TypeChange, value::BitValue, wtype::WaveType};
+use self::{state_edit::StateEdit, type_change::TypeChange};
 use super::windows::WindowResult;
+
+pub use {wtype::WaveType, value::BitValue};
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 enum WaveSign {
@@ -201,10 +203,10 @@ impl Wave {
                         if !self.selected_data.is_empty() {
                             self.selected_data.iter().for_each(|i| {
                                 let polygon = Polygon::new(PlotPoints::Owned(vec![
-                                    PlotPoint::new(*i as f64      , max),
-                                    PlotPoint::new((*i + 1) as f64 , max),
-                                    PlotPoint::new((*i + 1) as f64 , min),
-                                    PlotPoint::new(*i as f64      , min),
+                                    PlotPoint::new(*i as f64, max),
+                                    PlotPoint::new((*i + 1) as f64, max),
+                                    PlotPoint::new((*i + 1) as f64, min),
+                                    PlotPoint::new(*i as f64, min),
                                 ]))
                                 .color(egui::Color32::from_rgba_unmultiplied(150, 30, 30, 125));
                                 plot_ui.polygon(polygon.name(""));
@@ -269,34 +271,21 @@ impl Wave {
     }
 
     fn display_type_change(&mut self, ui: &mut Ui) {
+        let mut new_type = None;
         if let WaveState::TypeChange(params) = &mut self.state {
             match params.display(ui) {
                 WindowResult::Open => {}
                 WindowResult::Save => {
-                    match params.new_tp {
-                        WaveType::Clock(c) => {
-                            self.tp = WaveType::Clock(c);
-                            self.recalculate_clock();
-                            self.max_value = 1.0;
-                            self.min_value = 0.0;
-                            self.display = WaveDisplay::Binary;
-                        }
-                        WaveType::Wire => {}
-                        WaveType::Reg(r) => {
-                            self.data.iter_mut().for_each(|v| {
-                                v.set_size(r).unwrap();
-                            });
-                            self.tp = WaveType::Reg(r);
-                            self.display = WaveDisplay::Hex;
-                            self.refresh_min_max();
-                        }
-                    }
+                    new_type = Some(params.new_tp);
                     self.state = WaveState::Show;
                 }
                 WindowResult::Cancel | WindowResult::Close => {
                     self.state = WaveState::Show;
                 }
             }
+        }
+        if let Some(nt) = new_type{
+            self.set_type(nt);
         }
     }
 
@@ -362,6 +351,34 @@ impl Wave {
         }
     }
 
+    pub fn set_type(&mut self, new_type: WaveType){
+        match new_type{
+            WaveType::Clock(c) => {
+                self.tp = WaveType::Clock(c);
+                self.recalculate_clock();
+                self.max_value = 1.0;
+                self.min_value = 0.0;
+                self.display = WaveDisplay::Binary;
+            }
+            WaveType::Wire => {
+                self.data.iter_mut().for_each(|v|{
+                    v.set_size(1).unwrap();
+                });
+                self.tp = WaveType::Wire;
+                self.display = WaveDisplay::Binary;
+                self.refresh_min_max();
+            }
+            WaveType::Reg(r) => {
+                self.data.iter_mut().for_each(|v| {
+                    v.set_size(r).unwrap();
+                });
+                self.tp = WaveType::Reg(r);
+                self.display = WaveDisplay::Hex;
+                self.refresh_min_max();
+            }
+        }
+    }
+
     pub fn deleted(&self) -> bool {
         self.deleted
     }
@@ -374,6 +391,15 @@ impl Wave {
         }
         self.recalculate_clock();
         self.refresh_min_max();
+    }
+
+    pub fn extend_by_last(&mut self, new_len: usize) {
+        let last = if let Some(v) = self.data.last() {
+            v.clone()
+        } else {
+            BitValue::new(self.reg_size())
+        };
+        self.data.resize(new_len, last);
     }
 
     fn refresh_min_max(&mut self) {
