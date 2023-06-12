@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::anyhow;
-use egui::Ui;
-use log::warn;
+use egui::{Ui, Vec2};
+use log::{debug, warn};
 
 use crate::{
     app::{
@@ -61,8 +61,17 @@ impl ImportData {
     pub fn display(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) -> WindowResult {
         let mut state = WindowResult::Open;
         let mut open = true;
+        let ms = _frame.info().window_info.monitor_size;
         egui::Window::new("Import data")
             .open(&mut open)
+            .resizable(true)
+            .resize(|r|{
+                if let Some(ms) = ms{
+                    r.max_size(ms)
+                } else {
+                    r.auto_sized()
+                }
+            })
             .show(ctx, |ui| {
                 ui.vertical(|ui| {
                     egui::ComboBox::new("input_type_file", "Input type file").show_ui(ui, |ui| {
@@ -128,10 +137,17 @@ impl ImportData {
 
     fn display_new_values(&mut self, ui: &mut Ui) {
         let link_group_id = ui.id().with("link_waves");
-        for w in &mut self.new_waves {
-            w.display(ui, link_group_id, &egui::InputState::default());
-            hseparator!(ui);
-        }
+        // egui::CollapsingHeader::new("Imported plots").show(ui, |ui|{
+            // egui::ScrollArea::new([true, false]).show(ui, |ui| {
+                // ui.vertical(|ui| {
+                    for w in &mut self.new_waves {
+                        w.current_size.x = ui.available_width();
+                        w.display(ui, link_group_id, &egui::InputState::default());
+                        hseparator!(ui);
+                    }
+                // });
+            // });
+        // });
     }
 
     fn import_vcd(&mut self, p: &PathBuf) -> Result<Vec<Wave>, anyhow::Error> {
@@ -141,22 +157,21 @@ impl ImportData {
             warn!("VCD parse header: {:#}", e);
             anyhow!(e)
         })?;
-        let mut scope = String::new();
         let mut vars = HashMap::new();
         let mut waves: HashMap<vcd::IdCode, Wave> = HashMap::new();
         let mut stack = Vec::new();
-        stack.push(header.items);
-        while let Some(items) = stack.pop() {
+        stack.push((String::new(), header.items));
+        while let Some((scope, items)) = stack.pop() {
             for i in items {
                 match i {
                     vcd::ScopeItem::Scope(s) => {
-                        stack.push(s.children);
+                        stack.push((s.identifier ,s.children));
                     }
                     vcd::ScopeItem::Var(v) => {
                         let Some(nt) = vcd_type(&v) else {
                             continue;
                         };
-                        let mut w = Wave::new(v.reference.clone(), 16, egui::Vec2::ZERO);
+                        let mut w = Wave::new(format!("{}.{}", scope, v.reference.clone()), 16, egui::Vec2::ZERO);
                         w.set_type(nt);
                         waves.insert(v.code, w);
                         vars.insert(
@@ -172,7 +187,9 @@ impl ImportData {
             }
         }
         let mut current_time = 0usize;
-        let (time_div, _) = header.timescale.unwrap_or((1, vcd::TimescaleUnit::S));
+        let (time_div, s) = header.timescale.unwrap_or((1, vcd::TimescaleUnit::S));
+        let time_div = s.divisor() / time_div as u64;
+        debug!("Time div: {}, {}", time_div, s);
         for item in parser {
             let item = item?;
             match item {
@@ -188,7 +205,7 @@ impl ImportData {
                 | vcd::Command::End(_) => {}
                 vcd::Command::Timestamp(t) => {
                     for w in waves.values_mut() {
-                        w.extend_by_last((t / time_div as u64) as usize);
+                        w.extend_by_last(t as usize / time_div as usize);
                     }
                     current_time = t as usize;
                 }
