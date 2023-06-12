@@ -2732,8 +2732,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 [[package]]
 name = "vcd"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84a5ed196124bf3bb32418e5f79cd7548a455500bba37e094f7ef4cfe91161fc"
+source = "git+https://github.com/nrot/rust-vcd#9f6602b263e7eaa39e410bef9ea9c7910a4694dd"
 
 [[package]]
 name = "vec_map"

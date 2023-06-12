@@ -34,7 +34,7 @@ miette = { version = "5.9.0" }
 anyhow = "1.0.71"
 zip = "0.6.6"
 ron = "0.8.0"
-vcd = "0.6.1"
+vcd = {git="https://github.com/nrot/rust-vcd"}
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

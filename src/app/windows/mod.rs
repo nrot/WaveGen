@@ -7,10 +7,11 @@ pub use project_settings::ProjectSettings;
 pub use import::ImportData;
 
 
-#[derive(PartialEq, Eq)]
+// #[derive(PartialEq, Eq)]
 pub enum WindowResult {
     Open,
     Save,
     Cancel,
     Close,
+    Error(anyhow::Error)
 }

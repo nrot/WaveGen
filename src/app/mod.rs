@@ -151,6 +151,9 @@ impl App {
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
             }
+            windows::WindowResult::Error(e)=>{
+                self.state = AppState::Error(e);
+            }
         }
     }
 
@@ -172,6 +175,9 @@ impl App {
             }
             windows::WindowResult::Cancel | windows::WindowResult::Close => {
                 self.state = AppState::Main;
+            }
+            windows::WindowResult::Error(e)=>{
+                self.state = AppState::Error(e);
             }
         }
     }
@@ -201,6 +207,9 @@ impl App {
             windows::WindowResult::Open => {},
             windows::WindowResult::Save => todo!(),
             windows::WindowResult::Cancel | windows::WindowResult::Close => {self.state = AppState::Main},
+            windows::WindowResult::Error(e)=>{
+                self.state = AppState::Error(e);
+            }
         }
     }
 

@@ -3,9 +3,14 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::anyhow;
 use egui::Ui;
 use log::warn;
-use vcd::Parser;
 
-use crate::app::{waves::{Wave, BitValue}, WaveType};
+use crate::{
+    app::{
+        waves::{BitValue, Wave},
+        WaveType,
+    },
+    hseparator,
+};
 
 use super::WindowResult;
 
@@ -36,6 +41,8 @@ pub struct ImportData {
     input_tp_file: InputType,
     file_path: Option<PathBuf>,
     new_waves: Vec<Wave>,
+    unknow_value: bool,
+    high_impedance: bool,
 }
 
 impl Default for ImportData {
@@ -44,6 +51,8 @@ impl Default for ImportData {
             input_tp_file: InputType::CSV,
             file_path: None,
             new_waves: Vec::new(),
+            unknow_value: false,
+            high_impedance: false,
         }
     }
 }
@@ -74,11 +83,28 @@ impl ImportData {
                         if ui.button("Choose file").clicked() {
                             let folder = rfd::FileDialog::new().pick_file();
                             if let Some(f) = folder {
-                                self.import_vcd(&f);
+                                match self.import_vcd(&f) {
+                                    Ok(nw) => self.new_waves = nw,
+                                    Err(e) => {
+                                        warn!("Error: {}", e);
+                                        state = WindowResult::Error(e);
+                                    }
+                                }
                                 self.file_path = Some(f);
                             }
                         }
                     });
+                    ui.horizontal(|ui| {
+                        match self.input_tp_file {
+                            InputType::CSV => {
+                                ui.label("Not implemented now");
+                            }
+                            InputType::VCD => {
+                                self.params_vcd(ui);
+                            }
+                        };
+                    });
+                    self.display_new_values(ui);
                 });
             });
         if !open {
@@ -87,10 +113,34 @@ impl ImportData {
         state
     }
 
-    fn import_vcd(&mut self, p: &PathBuf) -> Result<(), anyhow::Error> {
+    fn params_vcd(&mut self, ui: &mut Ui) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Unknow Value replace to:");
+                ui.checkbox(&mut self.unknow_value, "");
+            });
+            ui.horizontal(|ui| {
+                ui.label("High Impedance replace to:");
+                ui.checkbox(&mut self.high_impedance, "");
+            });
+        });
+    }
+
+    fn display_new_values(&mut self, ui: &mut Ui) {
+        let link_group_id = ui.id().with("link_waves");
+        for w in &mut self.new_waves {
+            w.display(ui, link_group_id, &egui::InputState::default());
+            hseparator!(ui);
+        }
+    }
+
+    fn import_vcd(&mut self, p: &PathBuf) -> Result<Vec<Wave>, anyhow::Error> {
         let f = std::fs::File::open(p)?;
         let mut parser = vcd::Parser::new(f);
-        let header = parser.parse_header()?;
+        let header = parser.parse_header().map_err(|e| {
+            warn!("VCD parse header: {:#}", e);
+            anyhow!(e)
+        })?;
         let mut scope = String::new();
         let mut vars = HashMap::new();
         let mut waves: HashMap<vcd::IdCode, Wave> = HashMap::new();
@@ -106,7 +156,7 @@ impl ImportData {
                         let Some(nt) = vcd_type(&v) else {
                             continue;
                         };
-                        let mut w =Wave::new(v.reference.clone(), 16, egui::Vec2::ZERO); 
+                        let mut w = Wave::new(v.reference.clone(), 16, egui::Vec2::ZERO);
                         w.set_type(nt);
                         waves.insert(v.code, w);
                         vars.insert(
@@ -117,6 +167,7 @@ impl ImportData {
                             },
                         );
                     }
+                    vcd::ScopeItem::Comment(_) => {}
                 }
             }
         }
@@ -143,22 +194,56 @@ impl ImportData {
                 }
                 vcd::Command::ChangeScalar(id, v) => {
                     warn!("Not implemetned yet: {id}->{v}");
-                },
+                }
                 vcd::Command::ChangeVector(id, v) => {
-                    if v.len() > BitValue::BITS{
+                    if v.len() > BitValue::BITS {
                         warn!("To big value to implement: {id}");
                         continue;
                     }
-                },
-                vcd::Command::ChangeReal(id, v) => todo!(),
+                    if let Some(value) = waves.get(&id) {
+                        let mut b = BitValue::new(value.reg_size());
+                        let s = format!(
+                            "0b{}",
+                            v.iter()
+                                .map(|v| {
+                                    match v {
+                                        vcd::Value::V0 => '0',
+                                        vcd::Value::V1 => '1',
+                                        vcd::Value::X => {
+                                            if self.unknow_value {
+                                                '1'
+                                            } else {
+                                                '0'
+                                            }
+                                        }
+                                        vcd::Value::Z => {
+                                            if self.high_impedance {
+                                                '1'
+                                            } else {
+                                                '0'
+                                            }
+                                        }
+                                    }
+                                })
+                                .collect::<String>()
+                        );
+                        b.parse_from(&s).map_err(|v| {
+                            warn!("Error value: {}", s);
+                            anyhow!("Error change vector: {}", v)
+                        })?;
+                        waves.get_mut(&id).unwrap().set_last_value(b);
+                    }
+                }
+                vcd::Command::ChangeReal(id, v) => {
+                    warn!("Not implemented Real value: {id}->{v:.2}");
+                }
                 vcd::Command::ChangeString(id, _) => {
                     warn!("String unsuported: {id}");
-                },
+                }
                 _ => warn!("Unknow vcd command"),
             }
         }
-
-        Ok(())
+        Ok(waves.into_values().collect())
     }
 }
 

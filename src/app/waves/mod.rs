@@ -255,6 +255,9 @@ impl Wave {
                 WindowResult::Cancel | WindowResult::Close => {
                     self.state = WaveState::Show;
                 }
+                WindowResult::Error(_)=>{
+                    self.state = WaveState::Show;
+                }
             };
         }
     }
@@ -280,6 +283,9 @@ impl Wave {
                     self.state = WaveState::Show;
                 }
                 WindowResult::Cancel | WindowResult::Close => {
+                    self.state = WaveState::Show;
+                }
+                WindowResult::Error(_)=>{
                     self.state = WaveState::Show;
                 }
             }
@@ -402,6 +408,12 @@ impl Wave {
         self.data.resize(new_len, last);
     }
 
+    pub fn set_last_value(&mut self, new_value: BitValue){
+        if let Some(v) = self.data.last_mut(){
+            *v = new_value;
+        };
+    }
+
     fn refresh_min_max(&mut self) {
         self.max_value = f64::NEG_INFINITY;
         self.min_value = f64::INFINITY;
@@ -433,7 +445,7 @@ impl Wave {
     }
 
     #[allow(unused)]
-    fn reg_size(&self) -> usize {
+    pub fn reg_size(&self) -> usize {
         match self.tp {
             WaveType::Clock(_) => 1,
             WaveType::Wire => 1,
