@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, rc::Rc};
 
 use anyhow::anyhow;
 use egui::{Ui, Vec2};
@@ -37,11 +37,25 @@ impl ToString for InputType {
     }
 }
 
+struct WaveWrapper {
+    wave: Wave,
+    to_import: bool,
+}
+
+impl From<Wave> for WaveWrapper {
+    fn from(value: Wave) -> Self {
+        Self {
+            wave: value,
+            to_import: false,
+        }
+    }
+}
+
 pub struct ImportData {
     input_tp_file: InputType,
     file_path: Option<PathBuf>,
-    new_waves: Vec<Wave>,
-    unknow_value: bool,
+    new_waves: Vec<WaveWrapper>,
+    unknown_value: bool,
     high_impedance: bool,
 }
 
@@ -51,7 +65,7 @@ impl Default for ImportData {
             input_tp_file: InputType::CSV,
             file_path: None,
             new_waves: Vec::new(),
-            unknow_value: false,
+            unknown_value: false,
             high_impedance: false,
         }
     }
@@ -65,8 +79,8 @@ impl ImportData {
         egui::Window::new("Import data")
             .open(&mut open)
             .resizable(true)
-            .resize(|r|{
-                if let Some(ms) = ms{
+            .resize(|r| {
+                if let Some(ms) = ms {
                     r.max_size(ms)
                 } else {
                     r.auto_sized()
@@ -93,7 +107,9 @@ impl ImportData {
                             let folder = rfd::FileDialog::new().pick_file();
                             if let Some(f) = folder {
                                 match self.import_vcd(&f) {
-                                    Ok(nw) => self.new_waves = nw,
+                                    Ok(nw) => {
+                                        self.new_waves = nw.into_iter().map(|v| v.into()).collect()
+                                    }
                                     Err(e) => {
                                         warn!("Error: {}", e);
                                         state = WindowResult::Error(e);
@@ -126,7 +142,7 @@ impl ImportData {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Unknow Value replace to:");
-                ui.checkbox(&mut self.unknow_value, "");
+                ui.checkbox(&mut self.unknown_value, "");
             });
             ui.horizontal(|ui| {
                 ui.label("High Impedance replace to:");
@@ -138,15 +154,31 @@ impl ImportData {
     fn display_new_values(&mut self, ui: &mut Ui) {
         let link_group_id = ui.id().with("link_waves");
         // egui::CollapsingHeader::new("Imported plots").show(ui, |ui|{
-            // egui::ScrollArea::new([true, false]).show(ui, |ui| {
-                // ui.vertical(|ui| {
-                    for w in &mut self.new_waves {
-                        w.current_size.x = ui.available_width();
-                        w.display(ui, link_group_id, &egui::InputState::default());
-                        hseparator!(ui);
-                    }
-                // });
-            // });
+        // egui::ScrollArea::new([true, false]).show(ui, |ui| {
+        // ui.vertical(|ui| {
+        for w in &mut self.new_waves {
+            // let v = Rc::new(w.to_import);
+            // let tmp = v.clone();
+            // w.wave.set_info_drawer(Box::new(move |_wave, ui|{
+            //     let mut v = v.clone();
+            //     ui.checkbox( std::rc::Rc::<bool>::get_mut(&mut v).unwrap(), "Import");
+            // }));
+            w.wave.current_size.x = ui.available_width();
+            w.wave.display_with_info(
+                ui,
+                link_group_id,
+                &egui::InputState::default(),
+                |_wave, ui| {
+                    ui.checkbox(&mut w.to_import, "Import");
+                },
+            );
+            hseparator!(ui);
+            // if *tmp.as_ref() != w.to_import{
+            //     w.to_import = *tmp.as_ref();
+            // }
+        }
+        // });
+        // });
         // });
     }
 
@@ -165,14 +197,19 @@ impl ImportData {
             for i in items {
                 match i {
                     vcd::ScopeItem::Scope(s) => {
-                        stack.push((s.identifier ,s.children));
+                        stack.push((s.identifier, s.children));
                     }
                     vcd::ScopeItem::Var(v) => {
                         let Some(nt) = vcd_type(&v) else {
                             continue;
                         };
-                        let mut w = Wave::new(format!("{}.{}", scope, v.reference.clone()), 16, egui::Vec2::ZERO);
+                        let mut w = Wave::new(
+                            format!("{}.{}", scope, v.reference.clone()),
+                            16,
+                            egui::Vec2::ZERO,
+                        );
                         w.set_type(nt);
+
                         waves.insert(v.code, w);
                         vars.insert(
                             v.code,
@@ -227,7 +264,7 @@ impl ImportData {
                                         vcd::Value::V0 => '0',
                                         vcd::Value::V1 => '1',
                                         vcd::Value::X => {
-                                            if self.unknow_value {
+                                            if self.unknown_value {
                                                 '1'
                                             } else {
                                                 '0'

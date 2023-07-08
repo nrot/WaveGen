@@ -17,7 +17,7 @@ use crate::hseparator;
 use self::{state_edit::StateEdit, type_change::TypeChange};
 use super::windows::WindowResult;
 
-pub use {wtype::WaveType, value::BitValue};
+pub use {value::BitValue, wtype::WaveType};
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 enum WaveSign {
@@ -75,11 +75,10 @@ pub struct Wave {
     deleted: bool,
     pub current_size: Vec2,
     #[serde(skip)]
-    info_draw: Option<Rc<Box<WaveHandler>>>
+    info_draw: Option<Rc<Box<WaveHandler>>>,
 }
 
-type WaveHandler = dyn Fn(&mut Wave, &mut Ui);
-
+type WaveHandler = dyn FnMut(&mut Wave, &mut Ui);
 
 impl Wave {
     pub fn new<T: Into<String>>(name: T, size: usize, ui_size: Vec2) -> Self {
@@ -103,18 +102,51 @@ impl Wave {
             min_value: 0.0,
             deleted: false,
             current_size: ui_size,
-            info_draw: None
+            info_draw: None,
         }
     }
 
     pub fn display(&mut self, ui: &mut Ui, link_group_id: egui::Id, user_input: &InputState) {
+        self.display_inner::<Box<dyn FnMut(&mut Wave, &mut Ui)>>(
+            ui,
+            link_group_id,
+            user_input,
+            None,
+        );
+    }
+
+    pub fn display_with_info<F>(
+        &mut self,
+        ui: &mut Ui,
+        link_group_id: egui::Id,
+        user_input: &InputState,
+        info_draw: F,
+    ) where
+        F: FnMut(&mut Wave, &mut Ui),
+    {
+        self.display_inner(ui, link_group_id, user_input, Some(info_draw));
+    }
+
+    fn display_inner<F>(
+        &mut self,
+        ui: &mut Ui,
+        link_group_id: egui::Id,
+        user_input: &InputState,
+        info_draw: Option<F>,
+    ) where
+        F: FnMut(&mut Wave, &mut Ui),
+    {
         ui.horizontal(|ui| {
             ui.allocate_ui(self.current_size, |ui| {
                 let name = self.name.clone();
                 ui.vertical(|ui| {
                     ui.text_edit_singleline(&mut self.name)
                         .context_menu(|ui| self.name_menu(ui));
-                    self.draw_info(ui);
+                    if let Some(mut f) = info_draw {
+                        f(self, ui);
+                    } else {
+                        self.draw_info(ui);
+                    }
                 });
                 let mut diff = 0.0;
                 if let Some(ts) = ui.ctx().style().text_styles.get(&egui::TextStyle::Body) {
@@ -262,7 +294,7 @@ impl Wave {
                 WindowResult::Cancel | WindowResult::Close => {
                     self.state = WaveState::Show;
                 }
-                WindowResult::Error(_)=>{
+                WindowResult::Error(_) => {
                     self.state = WaveState::Show;
                 }
             };
@@ -292,12 +324,12 @@ impl Wave {
                 WindowResult::Cancel | WindowResult::Close => {
                     self.state = WaveState::Show;
                 }
-                WindowResult::Error(_)=>{
+                WindowResult::Error(_) => {
                     self.state = WaveState::Show;
                 }
             }
         }
-        if let Some(nt) = new_type{
+        if let Some(nt) = new_type {
             self.set_type(nt);
         }
     }
@@ -364,8 +396,8 @@ impl Wave {
         }
     }
 
-    pub fn set_type(&mut self, new_type: WaveType){
-        match new_type{
+    pub fn set_type(&mut self, new_type: WaveType) {
+        match new_type {
             WaveType::Clock(c) => {
                 self.tp = WaveType::Clock(c);
                 self.recalculate_clock();
@@ -374,7 +406,7 @@ impl Wave {
                 self.display = WaveDisplay::Binary;
             }
             WaveType::Wire => {
-                self.data.iter_mut().for_each(|v|{
+                self.data.iter_mut().for_each(|v| {
                     v.set_size(1).unwrap();
                 });
                 self.tp = WaveType::Wire;
@@ -392,13 +424,8 @@ impl Wave {
         }
     }
 
-    fn draw_info(&mut self, ui: &mut Ui){
-        if self.info_draw.is_some(){
-            let f = self.info_draw.clone().unwrap();
-            f(self, ui);
-            return;
-        };
-        ui.vertical(|ui|{
+    fn draw_info(&mut self, ui: &mut Ui) {
+        ui.vertical(|ui| {
             ui.label(&format!("Bit size: {}", self.reg_size()));
             ui.label(&format!("Type: {}", self.tp));
         });
@@ -427,8 +454,8 @@ impl Wave {
         self.data.resize(new_len, last);
     }
 
-    pub fn set_last_value(&mut self, new_value: BitValue){
-        if let Some(v) = self.data.last_mut(){
+    pub fn set_last_value(&mut self, new_value: BitValue) {
+        if let Some(v) = self.data.last_mut() {
             *v = new_value;
         };
     }
@@ -480,5 +507,9 @@ impl Wave {
         }
         fl.sync_data()?;
         Ok(())
+    }
+
+    pub fn set_info_drawer(&mut self, f: Box<WaveHandler>) {
+        self.info_draw = Some(Rc::new(f));
     }
 }
