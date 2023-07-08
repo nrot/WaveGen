@@ -3,7 +3,7 @@ mod type_change;
 mod value;
 mod wtype;
 
-use std::{collections::HashSet, io::Write, path::PathBuf};
+use std::{collections::HashSet, io::Write, path::PathBuf, rc::Rc};
 
 use egui::{
     plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
@@ -68,13 +68,18 @@ pub struct Wave {
     name: String,
     data: Vec<BitValue>,
     plot_data: Vec<f64>,
-    viwed_data: Vec<String>,
+    viewed_data: Vec<String>,
     selected_data: HashSet<usize>,
     max_value: f64,
     min_value: f64,
     deleted: bool,
     pub current_size: Vec2,
+    #[serde(skip)]
+    info_draw: Option<Rc<Box<WaveHandler>>>
 }
+
+type WaveHandler = dyn Fn(&mut Wave, &mut Ui);
+
 
 impl Wave {
     pub fn new<T: Into<String>>(name: T, size: usize, ui_size: Vec2) -> Self {
@@ -92,12 +97,13 @@ impl Wave {
             name: name.into(),
             data,
             plot_data,
-            viwed_data,
+            viewed_data: viwed_data,
             selected_data: HashSet::new(),
             max_value: 0.0,
             min_value: 0.0,
             deleted: false,
             current_size: ui_size,
+            info_draw: None
         }
     }
 
@@ -108,6 +114,7 @@ impl Wave {
                 ui.vertical(|ui| {
                     ui.text_edit_singleline(&mut self.name)
                         .context_menu(|ui| self.name_menu(ui));
+                    self.draw_info(ui);
                 });
                 let mut diff = 0.0;
                 if let Some(ts) = ui.ctx().style().text_styles.get(&egui::TextStyle::Body) {
@@ -383,6 +390,18 @@ impl Wave {
                 self.refresh_min_max();
             }
         }
+    }
+
+    fn draw_info(&mut self, ui: &mut Ui){
+        if self.info_draw.is_some(){
+            let f = self.info_draw.clone().unwrap();
+            f(self, ui);
+            return;
+        };
+        ui.vertical(|ui|{
+            ui.label(&format!("Bit size: {}", self.reg_size()));
+            ui.label(&format!("Type: {}", self.tp));
+        });
     }
 
     pub fn deleted(&self) -> bool {
