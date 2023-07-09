@@ -1,7 +1,7 @@
-use std::{collections::HashMap, path::PathBuf, rc::Rc};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::anyhow;
-use egui::{Ui, Vec2};
+use egui::Ui;
 use log::{debug, warn};
 
 use crate::{
@@ -223,7 +223,7 @@ impl ImportData {
                 }
             }
         }
-        let mut current_time = 0usize;
+        let mut _current_time = 0usize;
         let (time_div, s) = header.timescale.unwrap_or((1, vcd::TimescaleUnit::S));
         let time_div = s.divisor() / time_div as u64;
         debug!("Time div: {}, {}", time_div, s);
@@ -244,10 +244,10 @@ impl ImportData {
                     for w in waves.values_mut() {
                         w.extend_by_last(t as usize / time_div as usize);
                     }
-                    current_time = t as usize;
+                    _current_time = t as usize;
                 }
                 vcd::Command::ChangeScalar(id, v) => {
-                    warn!("Not implemetned yet: {id}->{v}");
+                    warn!("Not implemented yet: {id}->{v}");
                 }
                 vcd::Command::ChangeVector(id, v) => {
                     if v.len() > BitValue::BITS {
@@ -292,9 +292,9 @@ impl ImportData {
                     warn!("Not implemented Real value: {id}->{v:.2}");
                 }
                 vcd::Command::ChangeString(id, _) => {
-                    warn!("String unsuported: {id}");
+                    warn!("String unsupported: {id}");
                 }
-                _ => warn!("Unknow vcd command"),
+                _ => warn!("Unknown vcd command"),
             }
         }
         Ok(waves.into_values().collect())
@@ -318,23 +318,23 @@ fn vcd_type(v: &vcd::Var)->Option<WaveType>{
         vcd::VarType::Reg => {
             Some(WaveType::Reg(v.size as usize))
         },
-        vcd::VarType::Parameter => {warn!("Unsuported type: Parameter");None},
-        vcd::VarType::Event   => {warn!("Unsuported type: Event");None},
-        vcd::VarType::Supply0 => {warn!("Unsuported type: Supply0");None},
-        vcd::VarType::Supply1 => {warn!("Unsuported type: Supply1");None},
-        vcd::VarType::Time    => {warn!("Unsuported type: Time");None},
-        vcd::VarType::Tri     => {warn!("Unsuported type: Tri");None},
-        vcd::VarType::TriAnd  => {warn!("Unsuported type: TriAnd");None},
-        vcd::VarType::TriOr   => {warn!("Unsuported type: TriOr");None},
-        vcd::VarType::TriReg  => {warn!("Unsuported type: TriReg");None},
-        vcd::VarType::Tri0    => {warn!("Unsuported type: Tri0");None},
-        vcd::VarType::Tri1    => {warn!("Unsuported type: Tri1");None},
-        vcd::VarType::WAnd    => {warn!("Unsuported type: WAnd");None},
-        vcd::VarType::Wire    => {warn!("Unsuported type: Wire");None},
-        vcd::VarType::WOr     => {warn!("Unsuported type: WOr");None},
-        vcd::VarType::String =>  {warn!("Unsuported type: String");None}
+        vcd::VarType::Parameter => {warn!("Unsupported type: Parameter");None},
+        vcd::VarType::Event   => {warn!("Unsupported type: Event");None},
+        vcd::VarType::Supply0 => {warn!("Unsupported type: Supply0");None},
+        vcd::VarType::Supply1 => {warn!("Unsupported type: Supply1");None},
+        vcd::VarType::Time    => {warn!("Unsupported type: Time");None},
+        vcd::VarType::Tri     => {warn!("Unsupported type: Tri");None},
+        vcd::VarType::TriAnd  => {warn!("Unsupported type: TriAnd");None},
+        vcd::VarType::TriOr   => {warn!("Unsupported type: TriOr");None},
+        vcd::VarType::TriReg  => {warn!("Unsupported type: TriReg");None},
+        vcd::VarType::Tri0    => {warn!("Unsupported type: Tri0");None},
+        vcd::VarType::Tri1    => {warn!("Unsupported type: Tri1");None},
+        vcd::VarType::WAnd    => {warn!("Unsupported type: WAnd");None},
+        vcd::VarType::Wire    => {warn!("Unsupported type: Wire");None},
+        vcd::VarType::WOr     => {warn!("Unsupported type: WOr");None},
+        vcd::VarType::String =>  {warn!("Unsupported type: String");None}
         t => {
-            warn!("Unsuported type: {}", t.to_string()); None
+            warn!("Unsupported type: {}", t.to_string()); None
         }
     }
 }

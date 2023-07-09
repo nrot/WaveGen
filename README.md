@@ -6,7 +6,7 @@ App for create system verilog test by using waveform gui.
 
 ![Preview](assets/imgs/this_to_this.webp)
 
-## Feauters
+## Features
 
 - [x] Save/open project
 - [x] Generate System Verilog test code
@@ -38,7 +38,7 @@ App for create system verilog test by using waveform gui.
 | Ctrl + Right mouse | Wave Plot      | Select       |
 | Key A              | Wave Plot      | Deselect all |
 | Ctrl + S           | Anywhere       | Save project |
-| Rigth mouse grab   | Wave Plot      | Box scale    |
+| Right mouse grab   | Wave Plot      | Box scale    |
 
 ## Build and Run
 

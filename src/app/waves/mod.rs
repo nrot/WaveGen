@@ -3,7 +3,7 @@ mod type_change;
 mod value;
 mod wtype;
 
-use std::{collections::HashSet, io::Write, path::PathBuf, rc::Rc};
+use std::{collections::HashSet, io::Write, path::PathBuf};
 
 use egui::{
     plot::{AxisBools, Line, PlotPoint, PlotPoints, Polygon},
@@ -74,8 +74,6 @@ pub struct Wave {
     min_value: f64,
     deleted: bool,
     pub current_size: Vec2,
-    #[serde(skip)]
-    info_draw: Option<Rc<Box<WaveHandler>>>,
 }
 
 type WaveHandler = dyn FnMut(&mut Wave, &mut Ui);
@@ -86,8 +84,8 @@ impl Wave {
         data.resize(size, BitValue::new(1));
         let mut plot_data = Vec::with_capacity(size);
         plot_data.resize(size, 0.0);
-        let mut viwed_data = Vec::with_capacity(size);
-        viwed_data.resize(size, "0".into());
+        let mut viewed_data = Vec::with_capacity(size);
+        viewed_data.resize(size, "0".into());
         debug!("New data size: {}", data.len());
         Self {
             state: WaveState::Show,
@@ -96,18 +94,17 @@ impl Wave {
             name: name.into(),
             data,
             plot_data,
-            viewed_data: viwed_data,
+            viewed_data,
             selected_data: HashSet::new(),
             max_value: 0.0,
             min_value: 0.0,
             deleted: false,
             current_size: ui_size,
-            info_draw: None,
         }
     }
 
     pub fn display(&mut self, ui: &mut Ui, link_group_id: egui::Id, user_input: &InputState) {
-        self.display_inner::<Box<dyn FnMut(&mut Wave, &mut Ui)>>(
+        self.display_inner::<Box<WaveHandler>>(
             ui,
             link_group_id,
             user_input,
@@ -185,8 +182,8 @@ impl Wave {
                                 })
                                 .collect(),
                         };
-                        let transfom = plot_ui.transform();
-                        diff *= transfom.bounds().height() / transfom.frame().height() as f64;
+                        let transform = plot_ui.transform();
+                        diff *= transform.bounds().height() / transform.frame().height() as f64;
                         diff *= 1.05;
                         max += diff;
                         min -= diff;
@@ -507,9 +504,5 @@ impl Wave {
         }
         fl.sync_data()?;
         Ok(())
-    }
-
-    pub fn set_info_drawer(&mut self, f: Box<WaveHandler>) {
-        self.info_draw = Some(Rc::new(f));
     }
 }

@@ -76,7 +76,7 @@ impl ProjectExport {
         if self.generate_sv {
             let Some(w) = waves.first() else {
                 error!("Nothing to generate add one signal");
-                return Err(anyhow!("Nothing to generate. Add atleast one signal"));
+                return Err(anyhow!("Nothing to generate. Add at least one signal"));
             };
             let mut hand = handlebars::Handlebars::new();
             hand.register_template_file(TEMPLATE_NAME, "templates/test.hbs")?;
