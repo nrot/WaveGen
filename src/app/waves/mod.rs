@@ -147,7 +147,7 @@ impl Wave {
                 });
                 let mut diff = 0.0;
                 if let Some(ts) = ui.ctx().style().text_styles.get(&egui::TextStyle::Body) {
-                    diff = ts.size as f64;
+                    diff = ts.size as f64 * 2.0;
                 };
 
                 let plot_response = egui::plot::Plot::new(name)

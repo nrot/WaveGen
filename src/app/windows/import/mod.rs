@@ -152,32 +152,33 @@ impl ImportData {
     }
 
     fn display_new_values(&mut self, ui: &mut Ui) {
+        if !self.new_waves.is_empty() && ui.button("Import all").clicked() {
+            self.new_waves.iter_mut().for_each(|v| {
+                v.to_import = true;
+            });
+        }
         let link_group_id = ui.id().with("link_waves");
         // egui::CollapsingHeader::new("Imported plots").show(ui, |ui|{
-        // egui::ScrollArea::new([true, false]).show(ui, |ui| {
-        // ui.vertical(|ui| {
-        for w in &mut self.new_waves {
-            // let v = Rc::new(w.to_import);
-            // let tmp = v.clone();
-            // w.wave.set_info_drawer(Box::new(move |_wave, ui|{
-            //     let mut v = v.clone();
-            //     ui.checkbox( std::rc::Rc::<bool>::get_mut(&mut v).unwrap(), "Import");
-            // }));
-            w.wave.current_size.x = ui.available_width();
-            w.wave.display_with_info(
-                ui,
-                link_group_id,
-                &egui::InputState::default(),
-                |_wave, ui| {
-                    ui.checkbox(&mut w.to_import, "Import");
-                },
-            );
-            hseparator!(ui);
-            // if *tmp.as_ref() != w.to_import{
-            //     w.to_import = *tmp.as_ref();
-            // }
-        }
-        // });
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show_rows(ui, 100.0, self.new_waves.len(), |ui, row_range| {
+                // ui.vertical(|ui| {
+                for w in &mut self.new_waves {
+                    w.wave.current_size.x = ui.available_width();
+                    w.wave.display_with_info(
+                        ui,
+                        link_group_id,
+                        &egui::InputState::default(),
+                        |_wave, ui| {
+                            ui.checkbox(&mut w.to_import, "Import");
+                        },
+                    );
+                    hseparator!(ui);
+                }
+                // });
+            });
+        // .show(ui, |ui| {
+
         // });
         // });
     }
@@ -255,6 +256,9 @@ impl ImportData {
                         continue;
                     }
                     if let Some(value) = waves.get(&id) {
+                        if value.export_type() == "wire" {
+                            debug!("Wire detect");
+                        }
                         let mut b = BitValue::new(value.reg_size());
                         let s = format!(
                             "0b{}",
@@ -330,7 +334,9 @@ fn vcd_type(v: &vcd::Var)->Option<WaveType>{
         vcd::VarType::Tri0    => {warn!("Unsupported type: Tri0");None},
         vcd::VarType::Tri1    => {warn!("Unsupported type: Tri1");None},
         vcd::VarType::WAnd    => {warn!("Unsupported type: WAnd");None},
-        vcd::VarType::Wire    => {warn!("Unsupported type: Wire");None},
+        vcd::VarType::Wire    => {
+            Some(WaveType::Reg(v.size as usize))
+        },
         vcd::VarType::WOr     => {warn!("Unsupported type: WOr");None},
         vcd::VarType::String =>  {warn!("Unsupported type: String");None}
         t => {
